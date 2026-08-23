@@ -157,6 +157,7 @@
                     </div>
                 </div>
                 <h2 class="text-lg font-bold text-white">Ejecutando escaneo en tiempo real...</h2>
+                <p id="progreso-detalle" class="text-xs text-gray-400 max-w-md text-center"></p>
             </div>
 
             <!-- VISTA RESULTADOS -->
@@ -261,49 +262,78 @@
 
                 console.log('Status:', response.status);
                 const data = await response.json();
-                console.log('Resultados:', data.resultados ? data.resultados.length : 0);
 
-                document.getElementById('res-titulo').innerText = data.titulo || 'Resultados del Análisis';
-                document.getElementById('res-subtitulo').innerText = data.subtitulo || '';
-
-                const totalConectados = data.resultados ? data.resultados.length : 0;
-                document.getElementById('marcador-total').innerText = totalConectados;
-
-                const tbody = document.getElementById('tabla-resultados');
-                tbody.innerHTML = '';
-
-                if (data.resultados) {
-                    data.resultados.forEach(item => {
-                        const row = document.createElement('tr');
-                        let estiloBadge = 'bg-[#6c47ff]/20 text-[#8b5cf6] border border-[#6c47ff]/30';
-
-                        if (item.estado === 'CERRADO') {
-                            estiloBadge = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-                        } else if (item.estado === 'ABIERTO') {
-                            estiloBadge = 'bg-red-500/10 text-red-400 border border-red-500/20';
-                        }
-
-                        row.innerHTML = `
-                            <td class="py-3 font-bold text-white">${item.item}</td>
-                            <td class="py-3">
-                                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${estiloBadge}">
-                                    ${item.estado}
-                                </span>
-                            </td>
-                            <td class="py-3 text-gray-300 font-mono text-xs">${item.explicacion}</td>
-                        `;
-                        tbody.appendChild(row);
-                    });
+                if (data.async) {
+                    mostrarResultados(await esperarTrabajo(data.trabajo_id));
+                    return;
                 }
 
-                document.getElementById('vista-progreso').classList.add('hidden');
-                document.getElementById('vista-resultados').classList.remove('hidden');
+                console.log('Resultados:', data.resultados ? data.resultados.length : 0);
+                mostrarResultados(data);
 
             } catch (err) {
                 console.error('Error en escaneo:', err.message, err);
                 alert('Error: ' + err.message);
                 volverASeleccion();
             }
+        }
+
+        async function esperarTrabajo(trabajoId, timeoutMs = 120000) {
+            const detalle = document.getElementById('progreso-detalle');
+            const inicio = Date.now();
+            let intentos = 0;
+            while (Date.now() - inicio < timeoutMs) {
+                await new Promise(r => setTimeout(r, 3000));
+                const res = await fetch('/api/trabajo/' + trabajoId, {
+                    headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content }
+                });
+                if (!res.ok) throw new Error('No se pudo consultar el estado del escaneo');
+                const estado = await res.json();
+                if (estado.estado === 'completado') return estado;
+                if (estado.estado === 'error') throw new Error(estado.error || 'El agente reportó un error');
+                intentos++;
+                if (detalle) detalle.innerText = '📡 Escaneo de red encolado. Esperando al agente local (intento ' + intentos + ')... Asegúrate de que agente_local.py esté corriendo en la PC.';
+            }
+            throw new Error('Tiempo de espera agotado: el agente no respondió. ¿Está corriendo agente_local.py?');
+        }
+
+        function mostrarResultados(data) {
+            document.getElementById('progreso-detalle').innerText = '';
+            document.getElementById('res-titulo').innerText = data.titulo || 'Resultados del Análisis';
+            document.getElementById('res-subtitulo').innerText = data.subtitulo || '';
+
+            const totalConectados = data.resultados ? data.resultados.length : 0;
+            document.getElementById('marcador-total').innerText = totalConectados;
+
+            const tbody = document.getElementById('tabla-resultados');
+            tbody.innerHTML = '';
+
+            if (data.resultados) {
+                data.resultados.forEach(item => {
+                    const row = document.createElement('tr');
+                    let estiloBadge = 'bg-[#6c47ff]/20 text-[#8b5cf6] border border-[#6c47ff]/30';
+
+                    if (item.estado === 'CERRADO') {
+                        estiloBadge = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+                    } else if (item.estado === 'ABIERTO') {
+                        estiloBadge = 'bg-red-500/10 text-red-400 border border-red-500/20';
+                    }
+
+                    row.innerHTML = `
+                        <td class="py-3 font-bold text-white">${item.item}</td>
+                        <td class="py-3">
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${estiloBadge}">
+                                ${item.estado}
+                            </span>
+                        </td>
+                        <td class="py-3 text-gray-300 font-mono text-xs">${item.explicacion}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            document.getElementById('vista-progreso').classList.add('hidden');
+            document.getElementById('vista-resultados').classList.remove('hidden');
         }
 
         async function ejecutarAccion() {

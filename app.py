@@ -19,7 +19,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from models import db, Usuario, Escaneo, ResultadoEscaneo, Vulnerabilidad
+from models import db, Usuario, Escaneo, ResultadoEscaneo, Vulnerabilidad, TrabajoEscaneo
 from config import Config
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -600,6 +600,22 @@ def ejecutar_escaneo():
         if tipo_escaneo not in VALID_SCAN_TYPES:
             return jsonify({'error': 'Tipo de escaneo invalido'}), 400
 
+        # Escaneos de red local: se encolan para el agente si esta habilitado
+        if tipo_escaneo == 'dispositivos' and os.environ.get('AGENTE_HABILITADO') == '1':
+            trabajo = TrabajoEscaneo(
+                usuario_id=session['usuario_id'],
+                tipo='dispositivos',
+                target=target or 'auto',
+                estado='pendiente'
+            )
+            db.session.add(trabajo)
+            db.session.commit()
+            return jsonify({
+                'async': True,
+                'trabajo_id': trabajo.id,
+                'mensaje': 'Escaneo encolado. Esperando al agente de red...'
+            })
+
         try:
             target = sanitize_target(target, tipo_escaneo)
         except ValueError as e:
@@ -740,34 +756,10 @@ def ejecutar_escaneo():
             subtitulo = f"Rango analizado: {ip_base}.1 - {ip_base}.254 ({len(resultados)} dispositivos activos)"
             app.logger.info(f'Escaneo de dispositivos: {len(resultados)} encontrados')
 
-        nuevo = Escaneo(
-            usuario_id=session['usuario_id'],
-            tipo=tipo_escaneo,
-            target=target_registro,
-            titulo=titulo,
-            subtitulo=subtitulo,
-            total_dispositivos=len(resultados) if tipo_escaneo == 'dispositivos' else None
+        escaneo_id = guardar_escaneo_completo(
+            session['usuario_id'], tipo_escaneo, target_registro, titulo, subtitulo, resultados
         )
-        db.session.add(nuevo)
-        db.session.flush()
-        for r in resultados:
-            db.session.add(ResultadoEscaneo(
-                escaneo_id=nuevo.id,
-                item=r['item'],
-                estado=r['estado'],
-                explicacion=r['explicacion']
-            ))
-        db.session.commit()
-
-        try:
-            vulns = analizar_vulnerabilidades(tipo_escaneo, resultados, nuevo.id)
-            for v in vulns:
-                db.session.add(v)
-            db.session.commit()
-            app.logger.info(f'Vulnerabilidades generadas: {len(vulns)}')
-        except Exception as ve:
-            app.logger.error(f'Error guardando vulnerabilidades: {ve}')
-            db.session.rollback()
+        app.logger.info(f'Escaneo guardado id={escaneo_id} tipo={tipo_escaneo}')
 
         return jsonify({
             'titulo': titulo,
@@ -778,6 +770,129 @@ def ejecutar_escaneo():
     except Exception as e:
         app.logger.error(f'Error en escaneo: {e}', exc_info=True)
         return jsonify({'error': f'Error interno: {str(e)}'}), 500
+
+
+def guardar_escaneo_completo(usuario_id, tipo_escaneo, target_registro, titulo, subtitulo, resultados):
+    """Guarda el escaneo, sus resultados y vulnerabilidades. Devuelve el id del escaneo."""
+    nuevo = Escaneo(
+        usuario_id=usuario_id,
+        tipo=tipo_escaneo,
+        target=target_registro,
+        titulo=titulo,
+        subtitulo=subtitulo,
+        total_dispositivos=len(resultados) if tipo_escaneo == 'dispositivos' else None
+    )
+    db.session.add(nuevo)
+    db.session.flush()
+    for r in resultados:
+        db.session.add(ResultadoEscaneo(
+            escaneo_id=nuevo.id,
+            item=r['item'],
+            estado=r['estado'],
+            explicacion=r['explicacion']
+        ))
+    db.session.commit()
+
+    try:
+        vulns = analizar_vulnerabilidades(tipo_escaneo, resultados, nuevo.id)
+        for v in vulns:
+            db.session.add(v)
+        db.session.commit()
+    except Exception as ve:
+        app.logger.error(f'Error guardando vulnerabilidades: {ve}')
+        db.session.rollback()
+
+    return nuevo.id
+
+
+def _requiere_token_agente():
+    token_esperado = os.environ.get('AGENTE_TOKEN', '')
+    token_recibido = request.headers.get('X-Agente-Token', '')
+    return token_esperado and token_recibido == token_esperado
+
+
+@app.route('/api/trabajo/<int:trabajo_id>', methods=['GET'])
+def estado_trabajo(trabajo_id):
+    if 'usuario_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+
+    trabajo = TrabajoEscaneo.query.get(trabajo_id)
+    if not trabajo or trabajo.usuario_id != session['usuario_id']:
+        return jsonify({'error': 'Trabajo no encontrado'}), 404
+
+    respuesta = {'id': trabajo.id, 'estado': trabajo.estado}
+
+    if trabajo.estado == 'completado' and trabajo.escaneo_id:
+        escaneo = Escaneo.query.get(trabajo.escaneo_id)
+        if escaneo:
+            respuesta.update({
+                'titulo': escaneo.titulo,
+                'subtitulo': escaneo.subtitulo,
+                'resultados': [r.to_dict() for r in escaneo.resultados]
+            })
+    elif trabajo.estado == 'error':
+        respuesta['error'] = trabajo.mensaje_error or 'El agente reporto un error'
+
+    return jsonify(respuesta)
+
+
+@app.route('/api/agente/claim', methods=['POST'])
+def agente_claim():
+    if not _requiere_token_agente():
+        return jsonify({'error': 'Token de agente invalido'}), 401
+
+    trabajo = (TrabajoEscaneo.query
+               .filter_by(estado='pendiente')
+               .order_by(TrabajoEscaneo.id.asc())
+               .first())
+    if not trabajo:
+        return jsonify({'trabajo': None})
+
+    trabajo.estado = 'procesando'
+    db.session.commit()
+    return jsonify({'trabajo': {'id': trabajo.id, 'tipo': trabajo.tipo, 'target': trabajo.target}})
+
+
+@app.route('/api/agente/resultados', methods=['POST'])
+def agente_resultados():
+    if not _requiere_token_agente():
+        return jsonify({'error': 'Token de agente invalido'}), 401
+
+    datos = request.get_json() or {}
+    trabajo_id = datos.get('trabajo_id')
+    trabajo = TrabajoEscaneo.query.get(trabajo_id) if trabajo_id else None
+    if not trabajo or trabajo.estado != 'procesando':
+        return jsonify({'error': 'Trabajo no valido'}), 404
+
+    if not datos.get('ok'):
+        trabajo.estado = 'error'
+        trabajo.mensaje_error = datos.get('error', 'Error desconocido del agente')
+        trabajo.completado_en = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    try:
+        resultados = datos.get('resultados') or []
+        escaneo_id = guardar_escaneo_completo(
+            trabajo.usuario_id,
+            trabajo.tipo,
+            trabajo.target or 'auto',
+            datos.get('titulo', 'Dispositivos en Red Local'),
+            datos.get('subtitulo', ''),
+            resultados
+        )
+        trabajo.estado = 'completado'
+        trabajo.escaneo_id = escaneo_id
+        trabajo.completado_en = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as exc:
+        db.session.rollback()
+        trabajo.estado = 'error'
+        trabajo.mensaje_error = f'Error al guardar resultados: {exc}'
+        trabajo.completado_en = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'error': 'No se pudieron guardar los resultados'}), 500
 
 
 # ----------------------------------------------------------------------

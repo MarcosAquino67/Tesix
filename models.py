@@ -100,3 +100,30 @@ class Vulnerabilidad(db.Model):
             'severity': self.severity,
             'risk': self.risk,
         }
+
+
+# --------------------------------------------------------------------
+# Cola de trabajos para escaneos ejecutados por el agente local
+# --------------------------------------------------------------------
+class TrabajoEscaneo(db.Model):
+    __tablename__ = 'trabajos_escaneo'
+
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'),
+                           nullable=False, index=True)
+    tipo = db.Column(db.String(30), nullable=False, default='dispositivos')
+    target = db.Column(db.String(255))
+    estado = db.Column(db.String(20), nullable=False, default='pendiente',
+                       index=True)  # pendiente | procesando | completado | error
+    escaneo_id = db.Column(db.Integer, db.ForeignKey('escaneos.id'))
+    mensaje_error = db.Column(db.Text)
+    creado_en = db.Column(db.DateTime, default=datetime.utcnow)
+    completado_en = db.Column(db.DateTime)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'tipo': self.tipo,
+            'estado': self.estado,
+            'creado_en': self.creado_en.strftime('%Y-%m-%d %H:%M:%S') if self.creado_en else None
+        }
