@@ -22,7 +22,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, Usuario, Escaneo, ResultadoEscaneo, Vulnerabilidad
 from config import Config
 
-app = Flask(__name__)
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(
+    __name__,
+    template_folder=os.path.join(_BASE_DIR, 'templates'),
+    static_folder=os.path.join(_BASE_DIR, 'static')
+)
 app.config.from_object(Config)
 
 db.init_app(app)
@@ -48,15 +53,18 @@ limiter = Limiter(
 # LOGGING
 # ----------------------------------------------------------------------
 if not app.debug and not app.testing:
-    if not os.path.exists('logs'):
-        os.mkdir('logs')
-    file_handler = RotatingFileHandler('logs/scanner.log', maxBytes=10240000, backupCount=10)
-    file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-    ))
-    file_handler.setLevel(logging.INFO)
-    app.logger.addHandler(file_handler)
-    app.logger.setLevel(logging.INFO)
+    try:
+        if not os.path.exists('logs'):
+            os.mkdir('logs')
+        file_handler = RotatingFileHandler('logs/scanner.log', maxBytes=10240000, backupCount=10)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+        app.logger.setLevel(logging.INFO)
+    except OSError:
+        pass
     app.logger.info('Scanner iniciado')
 
 # ----------------------------------------------------------------------
