@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>SecureScan - Dashboard</title>
+
+    <!-- Fuente Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js para el gráfico de dona -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Theme CSS -->
+    <link rel="stylesheet" href="/static/css/theme.css">
+
+    <style>
+        body {
+            background-color: #0d0d12;
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-200 flex">
+
+    <!-- Sidebar / Menú Lateral -->
+    <aside class="w-64 bg-[#12121a] border-r border-[#1e1e2d] flex flex-col justify-between p-5 min-h-screen shrink-0">
+        <div>
+            <!-- Logo -->
+            <div class="flex items-center gap-3 px-2 py-4 mb-6">
+                <div class="bg-[#6c47ff]/20 p-2 rounded-xl border border-[#6c47ff]/30 text-[#6c47ff]">
+                    <i data-lucide="shield" class="w-6 h-6"></i>
+                </div>
+                <span class="text-lg font-bold text-white tracking-wide">SecureScan</span>
+            </div>
+
+            <!-- Navegación con enlaces corregidos -->
+            <nav class="space-y-1.5">
+                <a href="/dashboard" class="flex items-center gap-3 px-4 py-3 bg-[#6c47ff]/15 text-[#8b5cf6] font-semibold text-sm rounded-xl border border-[#6c47ff]/20">
+                    <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                    Dashboard
+                </a>
+                <a href="/nuevo-analisis" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span>Nuevo análisis</span>
+                </a>
+                <a href="/historial" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="history" class="w-4 h-4"></i>
+                    Historial
+                </a>
+                <a href="/resultados" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    Resultados
+                </a>
+                <a href="/vulnerabilidades" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                    Vulnerabilidades
+                </a>
+                <a href="/configuracion" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    Configuración
+                </a>
+            </nav>
+        </div>
+
+        <!-- Cerrar Sesión -->
+        <div class="pt-4 border-t border-[#1e1e2d]">
+            <a href="/logout" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-red-400 hover:bg-red-500/10 font-medium text-sm rounded-xl transition-all">
+                <i data-lucide="log-out" class="w-4 h-4"></i>
+                Cerrar sesión
+            </a>
+        </div>
+    </aside>
+
+    <!-- Contenido Principal -->
+    <main class="flex-1 flex flex-col min-w-0">
+        
+        <!-- Navbar Superior -->
+        <header class="h-16 px-8 border-b border-[#1e1e2d] flex items-center justify-between bg-[#12121a]/40 backdrop-blur-md">
+            <div class="flex items-center gap-4">
+                <button class="text-gray-400 hover:text-white">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <h1 class="text-base font-semibold text-white">Dashboard</h1>
+            </div>
+
+            <div class="flex items-center gap-5">
+                <button class="relative text-gray-400 hover:text-white">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                    <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-[#6c47ff]/20 border border-[#6c47ff]/40 flex items-center justify-center font-bold text-xs text-[#8b5cf6]">
+                        {{ usuario[0] | upper }}
+                    </div>
+                    <span class="text-xs font-medium text-gray-300">{{ usuario }}</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Panel Interno -->
+        <div class="p-8 space-y-6 overflow-y-auto">
+            
+            <!-- Título & Fechas -->
+            <div class="flex justify-between items-end">
+                <div>
+                    <h2 class="text-xl font-bold text-white">Resumen general</h2>
+                    <p class="text-xs text-gray-400 mt-0.5">Vista general de la seguridad de tus servidores y red</p>
+                </div>
+                <div class="bg-[#181824] border border-[#232333] px-3 py-1.5 rounded-lg text-xs font-medium text-gray-300 flex items-center gap-2">
+                    <span>Monitoreo en vivo</span>
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                </div>
+            </div>
+
+            <!-- Grid de 4 Métricas principales (Conectadas dinámicamente) -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                
+                <!-- Card 1 -->
+                <div class="bg-[#14141e] border border-[#1e1e2d] p-5 rounded-2xl relative overflow-hidden">
+                    <span class="text-xs font-medium text-gray-400">Análisis realizados</span>
+                    <div class="flex items-baseline justify-between mt-3">
+                        <span id="dash-total-escaneos" class="text-3xl font-extrabold text-white">0</span>
+                        <i data-lucide="trending-up" class="w-5 h-5 text-indigo-400"></i>
+                    </div>
+                    <p class="text-[11px] text-emerald-400 font-medium mt-3 flex items-center gap-1">
+                        <span>↑ Histórico</span> <span class="text-gray-500">en base de datos</span>
+                    </p>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="bg-[#14141e] border border-[#1e1e2d] p-5 rounded-2xl">
+                    <span class="text-xs font-medium text-emerald-400">Dispositivos en Red</span>
+                    <div class="flex items-baseline justify-between mt-3">
+                        <span id="dash-dispositivos" class="text-3xl font-extrabold text-white">0</span>
+                        <i data-lucide="wifi" class="w-5 h-5 text-emerald-400"></i>
+                    </div>
+                    <p class="text-[11px] text-emerald-400 font-medium mt-3 flex items-center gap-1">
+                        <span>Último análisis LAN</span>
+                    </p>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="bg-[#14141e] border border-[#1e1e2d] p-5 rounded-2xl">
+                    <span class="text-xs font-medium text-amber-500">Vulnerabilidades Altas</span>
+                    <div class="flex items-baseline justify-between mt-3">
+                        <span id="dash-vuln-altas" class="text-3xl font-extrabold text-white">0</span>
+                    </div>
+                    <p class="text-[11px] text-amber-400 font-medium mt-3 flex items-center gap-1">
+                        <span>Detectadas</span> <span class="text-gray-500">en tus análisis</span>
+                    </p>
+                </div>
+
+                <!-- Card 4 -->
+                <div class="bg-[#14141e] border border-[#1e1e2d] p-5 rounded-2xl">
+                    <span class="text-xs font-medium text-red-500">Vulnerabilidades Críticas</span>
+                    <div class="flex items-baseline justify-between mt-3">
+                        <span id="dash-vuln-criticas" class="text-3xl font-extrabold text-white">0</span>
+                    </div>
+                    <p class="text-[11px] text-red-400 font-medium mt-3 flex items-center gap-1">
+                        <span>Requieren</span> <span class="text-gray-500">atención inmediata</span>
+                    </p>
+                </div>
+                        </thead>
+                        <tbody id="tabla-dash-dispositivos" class="divide-y divide-[#1e1e2d]">
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Fila Inferior: Gráfico y Actividad -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <!-- Vulnerabilidades por severidad (Dona) -->
+                <div class="bg-[#14141e] border border-[#1e1e2d] p-6 rounded-2xl">
+                    <h3 class="text-sm font-bold text-white mb-6">Vulnerabilidades por severidad</h3>
+                    
+                    <div class="flex items-center justify-around gap-6">
+                        <!-- Canvas Chart -->
+                        <div class="relative w-44 h-44 flex items-center justify-center">
+                            <canvas id="doughnutChart"></canvas>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                <span id="dona-total" class="text-2xl font-extrabold text-white">0</span>
+                                <span class="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Total</span>
+                            </div>
+                        </div>
+
+                        <!-- Leyendas -->
+                        <div class="space-y-3 text-xs">
+                            <div class="flex items-center gap-3">
+                                <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                                <span class="text-gray-300 w-16">Críticas</span>
+                                <span id="dona-criticas" class="font-bold text-white">0 <span class="text-gray-500 font-normal">(0%)</span></span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                                <span class="text-gray-300 w-16">Altas</span>
+                                <span id="dona-altas" class="font-bold text-white">0 <span class="text-gray-500 font-normal">(0%)</span></span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                                <span class="text-gray-300 w-16">Medias</span>
+                                <span id="dona-medias" class="font-bold text-white">0 <span class="text-gray-500 font-normal">(0%)</span></span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                                <span class="text-gray-300 w-16">Bajas</span>
+                                <span id="dona-bajas" class="font-bold text-white">0 <span class="text-gray-500 font-normal">(0%)</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actividad reciente -->
+                <div class="bg-[#14141e] border border-[#1e1e2d] p-6 rounded-2xl">
+                    <h3 class="text-sm font-bold text-white mb-6">Actividad reciente</h3>
+
+                    <div id="lista-actividad" class="space-y-4">
+                        <div class="text-center text-gray-500 text-xs py-4">Cargando actividad...</div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Inicializar Lucide Icons, Chart.js y Carga de datos AJAX -->
+    <script>
+        lucide.createIcons();
+
+        // Configuración inicial de la gráfica de dona (se actualiza al cargar datos)
+        let doughnutChart;
+        const ctx = document.getElementById('doughnutChart').getContext('2d');
+        doughnutChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Críticas', 'Altas', 'Medias', 'Bajas'],
+                datasets: [{
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [
+                        '#ef4444', // Red
+                        '#f59e0b', // Amber
+                        '#3b82f6', // Blue
+                        '#10b981'  // Emerald
+                    ],
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                cutout: '80%',
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: true }
+                }
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', cargarDatosDashboard);
+
+        function clasificarEstado(estado) {
+            if (['ABIERTO', 'ALERTA', 'FALLO'].includes(estado)) return 'critica';
+            if (['RIESGO', 'AUSENTE'].includes(estado)) return 'alta';
+            if (['SEGURO'].includes(estado)) return 'baja';
+            return 'media';
+        }
+
+        function tiempoRelativo(fechaStr) {
+            const fecha = new Date(fechaStr.replace(' ', 'T'));
+            const ahora = new Date();
+            const diffMs = ahora - fecha;
+            const diffMin = Math.floor(diffMs / 60000);
+            const diffH = Math.floor(diffMin / 60);
+            const diffD = Math.floor(diffH / 24);
+
+            if (diffMin < 1) return 'Hace instantes';
+            if (diffMin < 60) return `Hace ${diffMin} min`;
+            if (diffH < 24) return `Hace ${diffH} h`;
+            if (diffD === 1) return 'Ayer';
+            return `Hace ${diffD} días`;
+        }
+
+        function iconoParaTipo(tipo) {
+            if (tipo === 'puertos') return 'network';
+            if (tipo === 'url') return 'globe';
+            if (tipo === 'dispositivos') return 'wifi';
+            return 'activity';
+        }
+
+        async function cargarDatosDashboard() {
+            try {
+                const response = await fetch('/api/historial');
+                const data = await response.json();
+                const escaneos = data.escaneos || data;
+
+                // Total de análisis
+                document.getElementById('dash-total-escaneos').innerText = escaneos.length;
+
+                // Contadores de severidad
+                let criticas = 0, altas = 0, medias = 0, bajas = 0;
+                let ultimoDispositivos = null;
+                let items = [];
+
+                for (const esc of escaneos) {
+                    if (esc.tipo === 'dispositivos' && !ultimoDispositivos) {
+                        ultimoDispositivos = esc;
+                    }
+
+                    const detalleRes = await fetch(`/api/historial/${esc.id}`);
+                    const detalle = await detalleRes.json();
+
+                    if (detalle.detalles) {
+                        for (const d of detalle.detalles) {
+                            const sev = clasificarEstado(d.estado);
+                            if (sev === 'critica') criticas++;
+                            else if (sev === 'alta') altas++;
+                            else if (sev === 'media') medias++;
+                            else if (sev === 'baja') bajas++;
+                        }
+                    }
+
+                    items.push({
+                        tipo: esc.tipo,
+                        target: esc.target,
+                        fecha: esc.fecha,
+                        criticas: detalle.detalles ? detalle.detalles.filter(d => clasificarEstado(d.estado) === 'critica').length : 0
+                    });
+                }
+
+                // Tarjetas de vulnerabilidades
+                document.getElementById('dash-vuln-altas').innerText = altas;
+                document.getElementById('dash-vuln-criticas').innerText = criticas;
+
+                // Gráfico de dona
+                doughnutChart.data.datasets[0].data = [criticas, altas, medias, bajas];
+                doughnutChart.update();
+
+                const total = criticas + altas + medias + bajas;
+                document.getElementById('dona-total').innerText = total;
+                const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
+                document.getElementById('dona-criticas').innerHTML = `${criticas} <span class="text-gray-500 font-normal">(${pct(criticas)}%)</span>`;
+                document.getElementById('dona-altas').innerHTML = `${altas} <span class="text-gray-500 font-normal">(${pct(altas)}%)</span>`;
+                document.getElementById('dona-medias').innerHTML = `${medias} <span class="text-gray-500 font-normal">(${pct(medias)}%)</span>`;
+                document.getElementById('dona-bajas').innerHTML = `${bajas} <span class="text-gray-500 font-normal">(${pct(bajas)}%)</span>`;
+
+                // Dispositivos en red
+                document.getElementById('dash-dispositivos').innerText = ultimoDispositivos ? (ultimoDispositivos.total_dispositivos || 0) : 0;
+
+                // Actividad reciente (últimos 4)
+                const listaActividad = document.getElementById('lista-actividad');
+                if (items.length === 0) {
+                    listaActividad.innerHTML = '<div class="text-center text-gray-500 text-xs py-4">Sin actividad reciente. Ejecuta tu primer análisis.</div>';
+                } else {
+                    listaActividad.innerHTML = '';
+                    items.slice(0, 4).forEach(item => {
+                        const tieneCriticas = item.criticas > 0;
+                        const colorBox = tieneCriticas ? 'text-red-400 bg-red-500/10' : 'text-emerald-400 bg-emerald-500/10';
+                        const icono = tieneCriticas ? 'alert-triangle' : 'check';
+                        const titulo = tieneCriticas ? `Vulnerabilidad crítica encontrada` :
+                                       item.tipo === 'puertos' ? 'Escaneo de puertos completado' :
+                                       item.tipo === 'url' ? 'Análisis web finalizado' :
+                                       'Dispositivos detectados en red';
+                        listaActividad.innerHTML += `
+                            <div class="flex items-start justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="${colorBox} p-2 rounded-lg">
+                                        <i data-lucide="${icono}" class="w-4 h-4"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-semibold text-white">${titulo}</p>
+                                        <p class="text-[11px] text-gray-400">${item.target}</p>
+                                    </div>
+                                </div>
+                                <span class="text-[11px] text-gray-500">${tiempoRelativo(item.fecha)}</span>
+                            </div>
+                        `;
+                    });
+                    lucide.createIcons();
+                }
+
+            } catch (err) {
+                console.error('Error al cargar datos del Dashboard:', err);
+            }
+        }
+    </script>
+<script>
+const savedTheme = localStorage.getItem('tema') || 'oscuro';
+document.body.classList.add('tema-' + savedTheme);
+// Density
+const savedDensity = localStorage.getItem('densidad') || 'normal';
+document.body.classList.add('density-' + savedDensity);
+</script>
+</body>
+</html>

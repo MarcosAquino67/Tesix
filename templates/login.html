@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>SecureScan - Acceso</title>
+
+    <!-- Fuente Inter de Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS desde CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body {
+            background-color: #0b0b10;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .bg-glow {
+            position: absolute;
+            top: -200px;
+            right: -100px;
+            width: 700px;
+            height: 700px;
+            background: radial-gradient(circle, rgba(108, 71, 255, 0.35) 0%, rgba(11, 11, 16, 0) 70%);
+            filter: blur(80px);
+            pointer-events: none;
+            z-index: 0;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white flex items-center justify-center relative overflow-hidden select-none">
+
+    <div class="bg-glow"></div>
+
+    <div class="w-full max-w-[1200px] px-8 flex flex-col md:flex-row items-center justify-between gap-12 z-10">
+
+        <!-- Lado izquierdo -->
+        <div class="max-w-md space-y-4">
+            <div class="flex items-center gap-3">
+                <svg class="w-10 h-10 text-[#6c47ff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <rect x="9" y="11" width="6" height="5" rx="1" stroke-width="1.8"/>
+                    <path d="M10 11V9a2 2 0 1 1 4 0v2" stroke-width="1.8"/>
+                </svg>
+                <h1 class="text-3xl font-bold tracking-tight text-white">SecureScan</h1>
+            </div>
+            <p class="text-[#8b5cf6] font-medium text-base">Sistema de seguridad para servidores web</p>
+            <p class="text-gray-400 text-sm leading-relaxed">
+                Analiza, detecta y protege tus servidores de amenazas y vulnerabilidades en tiempo real.
+            </p>
+        </div>
+
+        <!-- Lado derecho: Tarjeta Login / Registro -->
+        <div class="w-full max-w-[440px] bg-[#14141d] border border-[#232332] rounded-2xl p-8 shadow-2xl backdrop-blur-md">
+            
+            <!-- Selector de modo (Pestañas) -->
+            <div class="flex border-b border-[#232332] mb-6">
+                <button id="tab-login" onclick="setModo('login')" class="flex-1 pb-3 text-sm font-semibold text-[#6c47ff] border-b-2 border-[#6c47ff] transition-all">
+                    Iniciar sesión
+                </button>
+                <button id="tab-registro" onclick="setModo('registro')" class="flex-1 pb-3 text-sm font-semibold text-gray-400 hover:text-white border-b-2 border-transparent transition-all">
+                    Crear cuenta
+                </button>
+            </div>
+
+            <h2 id="titulo-form" class="text-2xl font-bold text-white mb-1">Iniciar sesión</h2>
+            <p id="subtitulo-form" class="text-gray-400 text-sm mb-6">Bienvenido de vuelta, inicia sesión para continuar</p>
+
+            <!-- Mensajes Flash de Flask -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="mb-4 p-3 rounded-lg text-xs font-medium {% if category == 'error' %}bg-red-500/10 text-red-400 border border-red-500/20{% else %}bg-green-500/10 text-green-400 border border-green-500/20{% endif %}">
+                    {{ message }}
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            <form id="auth-form" action="/login" method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="block text-xs font-medium text-gray-300 mb-1.5">Correo electrónico</label>
+                    <input type="text" name="usuario" placeholder="nombre@empresa.com" required autocomplete="off"
+                        class="w-full bg-[#0b0b10] border border-[#2d2d3f] rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#6c47ff] transition-colors">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-300 mb-1.5">Contraseña</label>
+                    <input type="password" id="clave-input" name="clave" placeholder="••••••••" required
+                        class="w-full bg-[#0b0b10] border border-[#2d2d3f] rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#6c47ff] transition-colors">
+                    <!-- Indicador de fortaleza -->
+                    <div id="strength-container" class="hidden mt-2">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs text-gray-400">Seguridad:</span>
+                            <span id="strength-text" class="text-xs font-semibold"></span>
+                        </div>
+                        <div class="w-full h-2 bg-[#1a1a2e] rounded-full overflow-hidden">
+                            <div id="strength-bar" class="h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <p id="strength-hint" class="text-[10px] text-gray-500 mt-1"></p>
+                    </div>
+                </div>
+
+                <div id="opciones-login" class="flex items-center justify-between text-xs pt-1">
+                    <label class="flex items-center text-gray-400 cursor-pointer">
+                        <input type="checkbox" class="rounded bg-[#0b0b10] border-gray-700 text-[#6c47ff] focus:ring-0 mr-2">
+                        Recordarme
+                    </label>
+                    <a href="/recuperar" class="text-[#8b5cf6] hover:underline transition-all">¿Olvidaste tu contraseña?</a>
+                </div>
+
+                <button id="btn-submit" type="submit" 
+                    class="w-full mt-2 bg-[#6c47ff] hover:bg-[#5b3adb] text-white font-semibold py-3 rounded-lg text-sm transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.99]">
+                    Iniciar sesión
+                </button>
+            </form>
+        </div>
+
+    </div>
+
+    <!-- Script JS para alternar modo Login / Registro sin recargar -->
+    <script>
+        function setModo(modo) {
+            const form = document.getElementById('auth-form');
+            const tabLogin = document.getElementById('tab-login');
+            const tabRegistro = document.getElementById('tab-registro');
+            const titulo = document.getElementById('titulo-form');
+            const subtitulo = document.getElementById('subtitulo-form');
+            const opcionesLogin = document.getElementById('opciones-login');
+            const btnSubmit = document.getElementById('btn-submit');
+            const strengthContainer = document.getElementById('strength-container');
+
+            if (modo === 'registro') {
+                form.action = '/registro';
+                titulo.innerText = 'Crear cuenta';
+                subtitulo.innerText = 'Regístrate para comenzar a monitorear tu servidor';
+                btnSubmit.innerText = 'Registrarse';
+                opcionesLogin.classList.add('hidden');
+                strengthContainer.classList.remove('hidden');
+
+                tabRegistro.className = 'flex-1 pb-3 text-sm font-semibold text-[#6c47ff] border-b-2 border-[#6c47ff] transition-all';
+                tabLogin.className = 'flex-1 pb-3 text-sm font-semibold text-gray-400 hover:text-white border-b-2 border-transparent transition-all';
+            } else {
+                form.action = '/login';
+                titulo.innerText = 'Iniciar sesión';
+                subtitulo.innerText = 'Bienvenido de vuelta, inicia sesión para continuar';
+                btnSubmit.innerText = 'Iniciar sesión';
+                opcionesLogin.classList.remove('hidden');
+                strengthContainer.classList.add('hidden');
+
+                tabLogin.className = 'flex-1 pb-3 text-sm font-semibold text-[#6c47ff] border-b-2 border-[#6c47ff] transition-all';
+                tabRegistro.className = 'flex-1 pb-3 text-sm font-semibold text-gray-400 hover:text-white border-b-2 border-transparent transition-all';
+            }
+        }
+
+        function evaluarContrasena(password) {
+            let score = 0;
+            let hints = [];
+
+            if (password.length >= 6) score += 1;
+            if (password.length >= 10) score += 1;
+            if (password.length >= 14) score += 1;
+            if (/[a-z]/.test(password)) score += 1; else hints.push('minuscula');
+            if (/[A-Z]/.test(password)) score += 1; else hints.push('mayuscula');
+            if (/[0-9]/.test(password)) score += 1; else hints.push('numero');
+            if (/[^a-zA-Z0-9]/.test(password)) score += 1; else hints.push('simbolo');
+
+            if (password.length < 6) hints.push('minimo 6 caracteres');
+
+            let nivel, color, porcentaje, texto;
+
+            if (score <= 2) {
+                nivel = 'debil';
+                color = '#ef4444';
+                porcentaje = 25;
+                texto = 'Debil';
+            } else if (score <= 3) {
+                nivel = 'regular';
+                color = '#f97316';
+                porcentaje = 50;
+                texto = 'Regular';
+            } else if (score <= 5) {
+                nivel = 'buena';
+                color = '#eab308';
+                porcentaje = 75;
+                texto = 'Buena';
+            } else {
+                nivel = 'fuerte';
+                color = '#22c55e';
+                porcentaje = 100;
+                texto = 'Muy fuerte';
+            }
+
+            return { color, porcentaje, texto, hints };
+        }
+
+        document.getElementById('clave-input').addEventListener('input', function() {
+            const password = this.value;
+            const bar = document.getElementById('strength-bar');
+            const text = document.getElementById('strength-text');
+            const hint = document.getElementById('strength-hint');
+            const border = this;
+
+            if (password.length === 0) {
+                bar.style.width = '0%';
+                text.innerText = '';
+                hint.innerText = '';
+                border.style.borderColor = '#2d2d3f';
+                return;
+            }
+
+            const resultado = evaluarContrasena(password);
+
+            bar.style.width = resultado.porcentaje + '%';
+            bar.style.backgroundColor = resultado.color;
+            text.innerText = resultado.texto;
+            text.style.color = resultado.color;
+            border.style.borderColor = resultado.color;
+
+            if (resultado.hints.length > 0) {
+                hint.innerText = 'Falta: ' + resultado.hints.join(', ');
+            } else {
+                hint.innerText = 'Contrasena segura';
+                hint.style.color = '#22c55e';
+            }
+        });
+    </script>
+
+</body>
+</html>

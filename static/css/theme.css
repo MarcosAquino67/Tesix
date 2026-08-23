@@ -1,0 +1,36 @@
+/* theme.css – estilos globales para los temas */
+body {
+    transition: background-color 0.3s ease;
+}
+
+/* ---- Temas de color adicionales ---- */
+body.tema-azul   { background-color: #0a1628; }
+body.tema-verde  { background-color: #0a1f1a; }
+body.tema-morado { background-color: #1a0a28; }
+
+/* ---- Densidad de interfaz ---- */
+body.density-compact .bg-panel { padding: 0.75rem !important; }
+body.density-compact .bg-input { padding: 0.4rem 0.75rem !important; font-size: 0.875rem !important; }
+body.density-compact .text-sm { font-size: 0.75rem !important; }
+body.density-compact .p-8 { padding: 1.5rem !important; }
+body.density-compact .space-y-6 > * + * { margin-top: 1rem !important; }
+body.density-compact .space-y-4 > * + * { margin-top: 0.75rem !important; }
+body.density-compact .p-4 { padding: 0.75rem !important; }
+body.density-compact .p-6 { padding: 1rem !important; }
+body.density-compact .rounded-2xl { border-radius: 0.75rem !important; }
+body.density-compact .rounded-xl { border-radius: 0.5rem !important; }
+body.density-compact .text-xl { font-size: 1.125rem !important; }
+body.density-compact .text-base { font-size: 0.875rem !important; }
+
+body.density-normal .bg-panel { padding: 1.5rem !important; }
+body.density-normal .bg-input { padding: 0.75rem 1rem !important; font-size: 1rem !important; }
+body.density-normal .text-sm { font-size: 0.875rem !important; }
+body.density-normal .p-8 { padding: 2rem !important; }
+body.density-normal .space-y-6 > * + * { margin-top: 1.5rem !important; }
+body.density-normal .space-y-4 > * + * { margin-top: 1rem !important; }
+body.density-normal .p-4 { padding: 1rem !important; }
+body.density-normal .p-6 { padding: 1.5rem !important; }
+body.density-normal .rounded-2xl { border-radius: 1rem !important; }
+body.density-normal .rounded-xl { border-radius: 0.75rem !important; }
+body.density-normal .text-xl { font-size: 1.25rem !important; }
+body.density-normal .text-base { font-size: 1rem !important; }

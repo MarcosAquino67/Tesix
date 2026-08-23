@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>SecureScan - Historial de Análisis</title>
+
+    <!-- Fuente Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Theme CSS -->
+    <link rel="stylesheet" href="/static/css/theme.css">
+
+    <style>
+        body {
+            background-color: #0d0d12;
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-200 flex">
+
+    <!-- Sidebar / Menú Lateral -->
+    <aside class="w-64 bg-[#12121a] border-r border-[#1e1e2d] flex flex-col justify-between p-5 min-h-screen shrink-0">
+        <div>
+            <!-- Logo -->
+            <div class="flex items-center gap-3 px-2 py-4 mb-6">
+                <div class="bg-[#6c47ff]/20 p-2 rounded-xl border border-[#6c47ff]/30 text-[#6c47ff]">
+                    <i data-lucide="shield" class="w-6 h-6"></i>
+                </div>
+                <span class="text-lg font-bold text-white tracking-wide">SecureScan</span>
+            </div>
+
+            <!-- Navegación -->
+            <nav class="space-y-1.5">
+                <a href="/dashboard" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                    Dashboard
+                </a>
+                <a href="/nuevo-analisis" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span>Nuevo análisis</span>
+                </a>
+                <a href="/historial" class="flex items-center gap-3 px-4 py-3 bg-[#6c47ff]/15 text-[#8b5cf6] font-semibold text-sm rounded-xl border border-[#6c47ff]/20">
+                    <i data-lucide="history" class="w-4 h-4"></i>
+                    Historial
+                </a>
+                <a href="/resultados" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    Resultados
+                </a>
+                <a href="/vulnerabilidades" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                    Vulnerabilidades
+                </a>
+                <a href="/configuracion" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    Configuración
+                </a>
+            </nav>
+        </div>
+
+        <!-- Cerrar Sesión -->
+        <div class="pt-4 border-t border-[#1e1e2d]">
+            <a href="/logout" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-red-400 hover:bg-red-500/10 font-medium text-sm rounded-xl transition-all">
+                <i data-lucide="log-out" class="w-4 h-4"></i>
+                Cerrar sesión
+            </a>
+        </div>
+    </aside>
+
+    <!-- Contenido Principal -->
+    <main class="flex-1 flex flex-col min-w-0">
+        
+        <!-- Navbar Superior -->
+        <header class="h-16 px-8 border-b border-[#1e1e2d] flex items-center justify-between bg-[#12121a]/40 backdrop-blur-md">
+            <div class="flex items-center gap-4">
+                <h1 class="text-base font-semibold text-white">Historial de Análisis</h1>
+            </div>
+
+            <div class="flex items-center gap-5">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-[#6c47ff]/20 border border-[#6c47ff]/40 flex items-center justify-center font-bold text-xs text-[#8b5cf6]">
+                        {{ usuario[0] | upper }}
+                    </div>
+                    <span class="text-xs font-medium text-gray-300">{{ usuario }}</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Panel Interno -->
+        <div class="p-8 space-y-6 overflow-y-auto">
+            
+            <div class="flex justify-between items-end">
+                <div>
+                    <h2 class="text-xl font-bold text-white">Registro de escaneos</h2>
+                    <p class="text-xs text-gray-400 mt-0.5">Consulta los análisis de red y vulnerabilidades ejecutados previamente</p>
+                </div>
+            </div>
+
+            <!-- Tabla de Historial -->
+            <div class="bg-[#14141e] border border-[#1e1e2d] rounded-2xl p-6">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="text-gray-400 border-b border-[#232333]">
+                                <th class="pb-3 font-medium">ID</th>
+                                <th class="pb-3 font-medium">Tipo</th>
+                                <th class="pb-3 font-medium">Objetivo / Target</th>
+                                <th class="pb-3 font-medium">Fecha</th>
+                                <th class="pb-3 font-medium">Resultados</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-historial" class="divide-y divide-[#1e1e2d]">
+                            <tr>
+                                <td colspan="5" class="py-6 text-center text-gray-500">Cargando registros...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        document.addEventListener('DOMContentLoaded', cargarHistorial);
+
+        async function cargarHistorial() {
+            try {
+                const response = await fetch('/api/historial');
+                const data = await response.json();
+                const escaneos = data.escaneos || data;
+
+                const tbody = document.getElementById('tabla-historial');
+                tbody.innerHTML = '';
+
+                if (!escaneos || escaneos.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="py-6 text-center text-gray-500">
+                                No hay escaneos guardados en el historial.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                escaneos.forEach(item => {
+                    const row = document.createElement('tr');
+                    
+                    let tipoBadge = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+                    if (item.tipo === 'dispositivos') {
+                        tipoBadge = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                    }
+
+                    row.innerHTML = `
+                        <td class="py-4 text-gray-400 font-mono">#${item.id}</td>
+                        <td class="py-4">
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${tipoBadge}">
+                                ${item.tipo}
+                            </span>
+                        </td>
+                        <td class="py-4 text-white font-medium">${item.target}</td>
+                        <td class="py-4 text-gray-400">${item.fecha}</td>
+                        <td class="py-4 text-gray-300">
+                            ${item.total_dispositivos !== undefined ? `${item.total_dispositivos} dispositivos` : 'Completado'}
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+            } catch (error) {
+                console.error('Error al cargar historial:', error);
+            }
+        }
+    </script>
+<script>
+const savedTheme = localStorage.getItem('tema') || 'oscuro';
+document.body.classList.add('tema-' + savedTheme);
+// Density
+const savedDensity = localStorage.getItem('densidad') || 'normal';
+document.body.classList.add('density-' + savedDensity);
+</script>
+</body>
+</html>
