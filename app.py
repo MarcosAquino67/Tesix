@@ -817,21 +817,27 @@ def _cola_agente_activa():
     return os.environ.get('VERCEL') == '1'
 
 
+def _tokens_agente_validos():
+    validos = {TOKEN_AGENTE_POR_DEFECTO}
+    por_entorno = os.environ.get('AGENTE_TOKEN')
+    if por_entorno:
+        validos.add(por_entorno.strip())
+    return validos
+
+
 def _requiere_token_agente():
-    token_esperado = os.environ.get('AGENTE_TOKEN') or TOKEN_AGENTE_POR_DEFECTO
-    if not token_esperado:
-        return False
     token_recibido = request.headers.get('X-Agente-Token', '')
     if not token_recibido:
         datos = request.get_json(silent=True) or {}
         token_recibido = datos.get('agente_token', '') or request.form.get('agente_token', '')
-    return token_recibido == token_esperado
+    return token_recibido in _tokens_agente_validos()
 
 
 @app.route('/api/agente/ping')
 def agente_ping():
     return jsonify({
         'ok': True,
+        'version': 3,
         'token_configurado': bool(os.environ.get('AGENTE_TOKEN') or TOKEN_AGENTE_POR_DEFECTO),
         'cola_habilitada': _cola_agente_activa()
     })
