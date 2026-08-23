@@ -807,8 +807,22 @@ def guardar_escaneo_completo(usuario_id, tipo_escaneo, target_registro, titulo, 
 
 def _requiere_token_agente():
     token_esperado = os.environ.get('AGENTE_TOKEN', '')
+    if not token_esperado:
+        return False
     token_recibido = request.headers.get('X-Agente-Token', '')
-    return token_esperado and token_recibido == token_esperado
+    if not token_recibido:
+        datos = request.get_json(silent=True) or {}
+        token_recibido = datos.get('agente_token', '') or request.form.get('agente_token', '')
+    return token_recibido == token_esperado
+
+
+@app.route('/api/agente/ping')
+def agente_ping():
+    return jsonify({
+        'ok': True,
+        'token_configurado': bool(os.environ.get('AGENTE_TOKEN')),
+        'cola_habilitada': os.environ.get('AGENTE_HABILITADO') == '1'
+    })
 
 
 @app.route('/api/trabajo/<int:trabajo_id>', methods=['GET'])

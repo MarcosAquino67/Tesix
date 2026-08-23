@@ -103,19 +103,34 @@ def ejecutar_escaneo_dispositivos():
     return titulo, subtitulo, resultados
 
 
+def _post(url, **kwargs):
+    kwargs.setdefault('timeout', 20)
+    r = requests.post(url, headers=HEADERS, **kwargs)
+    try:
+        datos = r.json()
+    except ValueError:
+        datos = None
+    return r.status_code, datos
+
+
 def claim_trabajo():
-    r = requests.post(f'{BASE}/api/agente/claim', headers=HEADERS, timeout=20)
-    if r.status_code == 401:
+    codigo, datos = _post(f'{BASE}/api/agente/claim', json={'agente_token': TOKEN})
+    if codigo == 401:
         print('[!] Token invalido. Revisa AGENTE_TOKEN.')
         sys.exit(1)
-    return r.json().get('trabajo')
+    if codigo == 200 and isinstance(datos, dict):
+        return datos.get('trabajo')
+    print(f'[!] Respuesta inesperada del servidor ({codigo}). Reintentando...')
+    return None
 
 
 def enviar_resultados(trabajo_id, payload):
     payload['trabajo_id'] = trabajo_id
-    r = requests.post(f'{BASE}/api/agente/resultados', headers={**HEADERS, 'Content-Type': 'application/json'},
-                      json=payload, timeout=30)
-    return r.ok
+    payload['agente_token'] = TOKEN
+    codigo, _ = _post(f'{BASE}/api/agente/resultados', json=payload)
+    if codigo != 200:
+        print(f'[!] El servidor rechazo los resultados (HTTP {codigo}).')
+    return codigo == 200
 
 
 def main():
