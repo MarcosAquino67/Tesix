@@ -1,0 +1,10 @@
+.env
+.env.local
+.env.*.local
+*.db
+logs/
+__pycache__/
+.pytest_cache/
+.vercel
+cookies*.txt
+tests/

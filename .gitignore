@@ -7,3 +7,6 @@ logs/
 *.log
 *.db
 cookies*.txt
+
+.vercel
+.env*
