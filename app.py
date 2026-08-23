@@ -882,10 +882,19 @@ def api_borrar_historial():
     if 'usuario_id' not in session:
         return jsonify({'error': 'No autorizado'}), 401
 
-    Escaneo.query.filter_by(usuario_id=session['usuario_id']).delete()
-    db.session.commit()
-    app.logger.info(f'Historial borrado por usuario_id: {session["usuario_id"]}')
-    return jsonify({'ok': True})
+    try:
+        ids = [e.id for e in Escaneo.query.filter_by(usuario_id=session['usuario_id']).all()]
+        if ids:
+            ResultadoEscaneo.query.filter(ResultadoEscaneo.escaneo_id.in_(ids)).delete(synchronize_session=False)
+            Vulnerabilidad.query.filter(Vulnerabilidad.escaneo_id.in_(ids)).delete(synchronize_session=False)
+            Escaneo.query.filter(Escaneo.id.in_(ids)).delete(synchronize_session=False)
+            db.session.commit()
+            app.logger.info(f'Historial borrado por usuario_id: {session["usuario_id"]} ({len(ids)} escaneos)')
+        return jsonify({'ok': True})
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.error(f'Error al borrar historial: {exc}')
+        return jsonify({'error': 'No se pudo borrar el historial'}), 500
 
 
 @app.route('/api/eliminar-cuenta', methods=['POST'])
@@ -894,11 +903,24 @@ def eliminar_cuenta():
         return jsonify({'error': 'No autorizado'}), 401
 
     user = Usuario.query.get(session['usuario_id'])
-    app.logger.info(f'Cuenta eliminada: {user.username}')
-    db.session.delete(user)
-    db.session.commit()
-    session.clear()
-    return jsonify({'ok': True})
+    if not user:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+
+    try:
+        ids = [e.id for e in Escaneo.query.filter_by(usuario_id=user.id).all()]
+        if ids:
+            ResultadoEscaneo.query.filter(ResultadoEscaneo.escaneo_id.in_(ids)).delete(synchronize_session=False)
+            Vulnerabilidad.query.filter(Vulnerabilidad.escaneo_id.in_(ids)).delete(synchronize_session=False)
+            Escaneo.query.filter(Escaneo.usuario_id == user.id).delete(synchronize_session=False)
+        app.logger.info(f'Cuenta eliminada: {user.username}')
+        db.session.delete(user)
+        db.session.commit()
+        session.clear()
+        return jsonify({'ok': True})
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.error(f'Error al eliminar cuenta: {exc}')
+        return jsonify({'error': 'No se pudo eliminar la cuenta'}), 500
 
 
 # ----------------------------------------------------------------------

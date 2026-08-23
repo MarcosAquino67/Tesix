@@ -403,5 +403,10 @@ document.body.classList.add('tema-' + savedTheme);
 const savedDensity = localStorage.getItem('densidad') || 'normal';
 document.body.classList.add('density-' + savedDensity);
 </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.body.classList.add('density-' + (localStorage.getItem('densidad') || 'normal'));
+        });
+    </script>
 </body>
 </html>

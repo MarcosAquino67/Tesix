@@ -47,6 +47,35 @@
         .tema-card:hover { transform: scale(1.05); }
         .tema-card.selected { ring: 2px; }
         .tema-card.selected .tema-borde { border-color: #6c47ff !important; }
+
+        /* ---- Densidad de interfaz ---- */
+        body.density-compacta .p-8 { padding: 1.25rem !important; }
+        body.density-compacta .p-6 { padding: 1rem !important; }
+        body.density-compacta .p-5 { padding: 0.9rem !important; }
+        body.density-compacta .p-4 { padding: 0.75rem !important; }
+        body.density-compacta .px-4 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+        body.density-compacta .py-3 { padding-top: 0.45rem !important; padding-bottom: 0.45rem !important; }
+        body.density-compacta .py-2\.5 { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
+        body.density-compacta .space-y-6 > * + * { margin-top: 0.9rem !important; }
+        body.density-compacta .space-y-4 > * + * { margin-top: 0.7rem !important; }
+        body.density-compacta .space-y-3 > * + * { margin-top: 0.5rem !important; }
+        body.density-compacta .text-sm { font-size: 0.8125rem !important; }
+        body.density-compacta .text-base { font-size: 0.9375rem !important; }
+        body.density-compacta .text-xs { font-size: 0.6875rem !important; }
+
+        body.density-holgada .p-8 { padding: 2.5rem !important; }
+        body.density-holgada .p-6 { padding: 2rem !important; }
+        body.density-holgada .p-5 { padding: 1.75rem !important; }
+        body.density-holgada .p-4 { padding: 1.4rem !important; }
+        body.density-holgada .px-4 { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
+        body.density-holgada .py-3 { padding-top: 0.85rem !important; padding-bottom: 0.85rem !important; }
+        body.density-holgada .py-2\.5 { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+        body.density-holgada .space-y-6 > * + * { margin-top: 2rem !important; }
+        body.density-holgada .space-y-4 > * + * { margin-top: 1.4rem !important; }
+        body.density-holgada .space-y-3 > * + * { margin-top: 1.15rem !important; }
+        body.density-holgada .text-sm { font-size: 0.9375rem !important; }
+        body.density-holgada .text-base { font-size: 1.0625rem !important; }
+        body.density-holgada .text-xs { font-size: 0.78125rem !important; }
     </style>
 </head>
 <body class="min-h-screen text-gray-200 flex">
@@ -208,9 +237,9 @@
                         <div>
                             <span class="block text-xs font-medium text-gray-300 mb-3">Densidad de la interfaz</span>
                             <div class="flex gap-3">
-                                <button onclick="cambiarDensidad('compacta')" class="px-4 py-2 bg-[#0d0d12] border border-[#232333] rounded-lg text-xs text-gray-300 hover:border-[#6c47ff]">Compacta</button>
-                                <button onclick="cambiarDensidad('normal')" class="px-4 py-2 bg-[#0d0d12] border border-[#6c47ff] rounded-lg text-xs text-white">Normal</button>
-                                <button onclick="cambiarDensidad('holgada')" class="px-4 py-2 bg-[#0d0d12] border border-[#232333] rounded-lg text-xs text-gray-300 hover:border-[#6c47ff]">Holgada</button>
+                                <button onclick="cambiarDensidad('compacta')" data-densidad="compacta" class="densidad-btn px-4 py-2 bg-[#0d0d12] border border-[#232333] rounded-lg text-xs text-gray-300 hover:border-[#6c47ff]">Compacta</button>
+                                <button onclick="cambiarDensidad('normal')" data-densidad="normal" class="densidad-btn px-4 py-2 bg-[#0d0d12] border border-[#6c47ff] rounded-lg text-xs text-white hover:border-[#6c47ff]">Normal</button>
+                                <button onclick="cambiarDensidad('holgada')" data-densidad="holgada" class="densidad-btn px-4 py-2 bg-[#0d0d12] border border-[#232333] rounded-lg text-xs text-gray-300 hover:border-[#6c47ff]">Holgada</button>
                             </div>
                         </div>
                     </section>
@@ -388,8 +417,19 @@
         // Densidad
         function cambiarDensidad(densidad) {
             localStorage.setItem('densidad', densidad);
-            document.body.classList.remove('density-compact', 'density-normal');
-            document.body.classList.add('density-' + densidad);
+            aplicarDensidad(densidad);
+        }
+
+        function aplicarDensidad(densidad) {
+            document.body.classList.remove('density-compacta', 'density-normal', 'density-holgada');
+            if (densidad !== 'normal') document.body.classList.add('density-' + densidad);
+            document.querySelectorAll('.densidad-btn').forEach(b => {
+                const activo = b.dataset.densidad === densidad;
+                b.classList.toggle('border-[#6c47ff]', activo);
+                b.classList.toggle('text-white', activo);
+                b.classList.toggle('text-gray-300', !activo);
+                b.classList.toggle('border-[#232333]', !activo);
+            });
         }
 
         // Otras sesiones
@@ -414,10 +454,14 @@
                 const res = await fetch('/api/borrar-historial', { 
                 method: 'POST',
                 headers: {
+                    'Content-Type': 'application/json',
                     'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
                 }
             });
-                if (res.ok) location.reload();
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { alert(data.error || 'Error al borrar el historial'); return; }
+                alert('Historial borrado correctamente');
+                location.reload();
             } catch (e) { alert('Error al borrar el historial'); }
         }
 
@@ -429,19 +473,21 @@
                 const res = await fetch('/api/eliminar-cuenta', { 
                 method: 'POST',
                 headers: {
+                    'Content-Type': 'application/json',
                     'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
                 }
             });
-                if (res.ok) window.location.href = '/';
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { alert(data.error || 'Error al eliminar la cuenta'); return; }
+                window.location.href = '/';
             } catch (e) { alert('Error al eliminar la cuenta'); }
         }
 
         // Cargar tema guardado al iniciar
         const temaGuardado = localStorage.getItem('tema') || 'oscuro';
         aplicarTema(temaGuardado);
-        // Density
-        const savedDensity = localStorage.getItem('densidad') || 'normal';
-        document.body.classList.add('density-' + savedDensity);
+        // Densidad guardada
+        aplicarDensidad(localStorage.getItem('densidad') || 'normal');
     </script>
 </body>
 </html>

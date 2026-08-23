@@ -9,28 +9,30 @@ body.tema-verde  { background-color: #0a1f1a; }
 body.tema-morado { background-color: #1a0a28; }
 
 /* ---- Densidad de interfaz ---- */
-body.density-compact .bg-panel { padding: 0.75rem !important; }
-body.density-compact .bg-input { padding: 0.4rem 0.75rem !important; font-size: 0.875rem !important; }
-body.density-compact .text-sm { font-size: 0.75rem !important; }
-body.density-compact .p-8 { padding: 1.5rem !important; }
-body.density-compact .space-y-6 > * + * { margin-top: 1rem !important; }
-body.density-compact .space-y-4 > * + * { margin-top: 0.75rem !important; }
-body.density-compact .p-4 { padding: 0.75rem !important; }
-body.density-compact .p-6 { padding: 1rem !important; }
-body.density-compact .rounded-2xl { border-radius: 0.75rem !important; }
-body.density-compact .rounded-xl { border-radius: 0.5rem !important; }
-body.density-compact .text-xl { font-size: 1.125rem !important; }
-body.density-compact .text-base { font-size: 0.875rem !important; }
+body.density-compacta .p-8 { padding: 1.25rem !important; }
+body.density-compacta .p-6 { padding: 1rem !important; }
+body.density-compacta .p-5 { padding: 0.9rem !important; }
+body.density-compacta .p-4 { padding: 0.75rem !important; }
+body.density-compacta .px-4 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+body.density-compacta .py-3 { padding-top: 0.45rem !important; padding-bottom: 0.45rem !important; }
+body.density-compacta .py-2\.5 { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
+body.density-compacta .space-y-6 > * + * { margin-top: 0.9rem !important; }
+body.density-compacta .space-y-4 > * + * { margin-top: 0.7rem !important; }
+body.density-compacta .space-y-3 > * + * { margin-top: 0.5rem !important; }
+body.density-compacta .text-sm { font-size: 0.8125rem !important; }
+body.density-compacta .text-base { font-size: 0.9375rem !important; }
+body.density-compacta .text-xs { font-size: 0.6875rem !important; }
 
-body.density-normal .bg-panel { padding: 1.5rem !important; }
-body.density-normal .bg-input { padding: 0.75rem 1rem !important; font-size: 1rem !important; }
-body.density-normal .text-sm { font-size: 0.875rem !important; }
-body.density-normal .p-8 { padding: 2rem !important; }
-body.density-normal .space-y-6 > * + * { margin-top: 1.5rem !important; }
-body.density-normal .space-y-4 > * + * { margin-top: 1rem !important; }
-body.density-normal .p-4 { padding: 1rem !important; }
-body.density-normal .p-6 { padding: 1.5rem !important; }
-body.density-normal .rounded-2xl { border-radius: 1rem !important; }
-body.density-normal .rounded-xl { border-radius: 0.75rem !important; }
-body.density-normal .text-xl { font-size: 1.25rem !important; }
-body.density-normal .text-base { font-size: 1rem !important; }
+body.density-holgada .p-8 { padding: 2.5rem !important; }
+body.density-holgada .p-6 { padding: 2rem !important; }
+body.density-holgada .p-5 { padding: 1.75rem !important; }
+body.density-holgada .p-4 { padding: 1.4rem !important; }
+body.density-holgada .px-4 { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
+body.density-holgada .py-3 { padding-top: 0.85rem !important; padding-bottom: 0.85rem !important; }
+body.density-holgada .py-2\.5 { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+body.density-holgada .space-y-6 > * + * { margin-top: 2rem !important; }
+body.density-holgada .space-y-4 > * + * { margin-top: 1.4rem !important; }
+body.density-holgada .space-y-3 > * + * { margin-top: 1.15rem !important; }
+body.density-holgada .text-sm { font-size: 0.9375rem !important; }
+body.density-holgada .text-base { font-size: 1.0625rem !important; }
+body.density-holgada .text-xs { font-size: 0.78125rem !important; }
