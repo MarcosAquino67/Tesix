@@ -24,7 +24,7 @@ except ImportError:
     sys.exit(1)
 
 BASE = os.environ.get('AGENTE_URL', 'https://tesix-five.vercel.app').rstrip('/')
-TOKEN = os.environ.get('AGENTE_TOKEN', '')
+TOKEN = os.environ.get('AGENTE_TOKEN', 'agente_7b01a29aa5edf699bcadc27f865f5596')
 
 HEADERS = {'X-Agente-Token': TOKEN}
 
@@ -134,12 +134,7 @@ def enviar_resultados(trabajo_id, payload):
 
 
 def main():
-    if not TOKEN:
-        print('[!] Define AGENTE_TOKEN (el mismo configurado en el servidor).')
-        print('    Ejemplo Windows:  set AGENTE_TOKEN=tu_token && python agente_local.py')
-        sys.exit(1)
-
-    print(f'[*] Agente SecureScan iniciado')
+    print('[*] Agente SecureScan iniciado')
     print(f'[*] Servidor: {BASE}')
     print(f'[*] Esperando trabajos de escaneo... (Ctrl+C para salir)')
     while True:

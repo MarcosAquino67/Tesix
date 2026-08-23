@@ -21,8 +21,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from models import db, Usuario, Escaneo, ResultadoEscaneo, Vulnerabilidad, TrabajoEscaneo
 from config import Config
-
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Token compartido entre el servidor y agente_local.py.
+# Puede sobreescribirse con la variable de entorno AGENTE_TOKEN en produccion.
+TOKEN_AGENTE_POR_DEFECTO = 'agente_7b01a29aa5edf699bcadc27f865f5596'
+
 app = Flask(
     __name__,
     template_folder=os.path.join(_BASE_DIR, 'templates'),
@@ -601,7 +605,7 @@ def ejecutar_escaneo():
             return jsonify({'error': 'Tipo de escaneo invalido'}), 400
 
         # Escaneos de red local: se encolan para el agente si esta habilitado
-        if tipo_escaneo == 'dispositivos' and os.environ.get('AGENTE_HABILITADO') == '1':
+        if tipo_escaneo == 'dispositivos' and _cola_agente_activa():
             trabajo = TrabajoEscaneo(
                 usuario_id=session['usuario_id'],
                 tipo='dispositivos',
@@ -805,8 +809,16 @@ def guardar_escaneo_completo(usuario_id, tipo_escaneo, target_registro, titulo, 
     return nuevo.id
 
 
+def _cola_agente_activa():
+    if os.environ.get('AGENTE_HABILITADO') == '1':
+        return True
+    if os.environ.get('AGENTE_HABILITADO') == '0':
+        return False
+    return os.environ.get('VERCEL') == '1'
+
+
 def _requiere_token_agente():
-    token_esperado = os.environ.get('AGENTE_TOKEN', '')
+    token_esperado = os.environ.get('AGENTE_TOKEN') or TOKEN_AGENTE_POR_DEFECTO
     if not token_esperado:
         return False
     token_recibido = request.headers.get('X-Agente-Token', '')
@@ -820,8 +832,8 @@ def _requiere_token_agente():
 def agente_ping():
     return jsonify({
         'ok': True,
-        'token_configurado': bool(os.environ.get('AGENTE_TOKEN')),
-        'cola_habilitada': os.environ.get('AGENTE_HABILITADO') == '1'
+        'token_configurado': bool(os.environ.get('AGENTE_TOKEN') or TOKEN_AGENTE_POR_DEFECTO),
+        'cola_habilitada': _cola_agente_activa()
     })
 
 
