@@ -4,9 +4,13 @@ __pycache__/
 .pytest_cache/
 instance/
 logs/
-*.log
+*.rar
+*.zip
 *.db
+*.log
 cookies*.txt
 
 .vercel
-.env*
+.env
+.env.local
+!.env.example

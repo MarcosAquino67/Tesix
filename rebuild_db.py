@@ -1,9 +1,15 @@
+import os
 from dotenv import load_dotenv
 load_dotenv()
 import pymysql
 from werkzeug.security import generate_password_hash
 
-conn = pymysql.connect(host='localhost', user='root', password='2307', database='scanner_db')
+DB_HOST = os.environ.get('DB_HOST', 'localhost')
+DB_USER = os.environ.get('DB_USER', 'root')
+DB_PASS = os.environ.get('DB_PASS', '')
+DB_NAME = os.environ.get('DB_NAME', 'scanner_db')
+
+conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASS, database=DB_NAME)
 cursor = conn.cursor()
 
 sql = """
