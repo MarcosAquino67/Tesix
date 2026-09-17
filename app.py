@@ -21,13 +21,24 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from models import db, Usuario, Escaneo, ResultadoEscaneo, Vulnerabilidad, TrabajoEscaneo
 from config import Config
-from sms_2fa import (
-    normalizar_telefono_py,
-    enmascarar_telefono,
+from email_2fa import (
+    normalizar_email,
+    enmascarar_email,
     iniciar_desafio,
     verificar_codigo,
     limpiar_desafio,
 )
+
+
+def _smtp_cfg():
+    """Parametros SMTP para el desafio 2FA desde la config de la app."""
+    return {
+        'host': app.config.get('SMTP_HOST', ''),
+        'port': app.config.get('SMTP_PORT', 587),
+        'user': app.config.get('SMTP_USER', ''),
+        'password': app.config.get('SMTP_PASS', ''),
+        'from_addr': app.config.get('SMTP_FROM', ''),
+    }
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Token compartido entre el servidor y agente_local.py.
@@ -530,21 +541,19 @@ def login():
     if user and check_password_hash(user.password_hash, clave):
         # Solo persiste la sesion al cerrar el navegador si marco "Recordarme"
         recordar = bool(request.form.get('recordarme'))
-        # Segundo factor por SMS si el usuario lo tiene activo
-        if user.tfa_habilitado and user.telefono:
+        # Segundo factor por email si el usuario lo tiene activo
+        if user.tfa_habilitado and user.email:
             ok, error = iniciar_desafio(
                 user,
                 minutos=app.config.get('TFA_CODIGO_MINUTOS', 10),
-                sid=app.config.get('TWILIO_ACCOUNT_SID', ''),
-                token=app.config.get('TWILIO_AUTH_TOKEN', ''),
-                from_number=app.config.get('TWILIO_FROM_NUMBER', ''),
+                **_smtp_cfg(),
             )
             if not ok:
-                flash(error or 'No se pudo enviar el codigo SMS', 'error')
+                flash(error or 'No se pudo enviar el codigo al correo', 'error')
                 return redirect('/')
             session['tfa_pendiente'] = user.id
             session['recordarme'] = recordar
-            app.logger.info(f'Codigo 2FA enviado a {enmascarar_telefono(user.telefono)} ({usuario})')
+            app.logger.info(f'Codigo 2FA enviado a {enmascarar_email(user.email)} ({usuario})')
             return redirect('/verificar-2fa')
 
         session['usuario'] = user.username
@@ -559,7 +568,7 @@ def login():
 
 
 # ----------------------------------------------------------------------
-# VERIFICACION EN DOS PASOS POR SMS
+# VERIFICACION EN DOS PASOS POR EMAIL
 # ----------------------------------------------------------------------
 def _usuario_tfa_pendiente():
     user_id = session.get('tfa_pendiente')
@@ -604,7 +613,7 @@ def verificar_2fa():
 
     return render_template(
         'verificar_2fa.html',
-        telefono_mask=enmascarar_telefono(user.telefono),
+        email_mask=enmascarar_email(user.email),
     )
 
 
@@ -617,44 +626,38 @@ def reenviar_codigo():
     ok, error = iniciar_desafio(
         user,
         minutos=app.config.get('TFA_CODIGO_MINUTOS', 10),
-        sid=app.config.get('TWILIO_ACCOUNT_SID', ''),
-        token=app.config.get('TWILIO_AUTH_TOKEN', ''),
-        from_number=app.config.get('TWILIO_FROM_NUMBER', ''),
+        **_smtp_cfg(),
     )
     if not ok:
         return jsonify({'error': error or 'No se pudo reenviar el codigo'}), 500
-    return jsonify({'ok': True, 'mensaje': 'Codigo reenviado por SMS'})
+    return jsonify({'ok': True, 'mensaje': 'Codigo reenviado a tu correo'})
 
 
-@app.route('/api/guardar-telefono-2fa', methods=['POST'])
-def guardar_telefono_2fa():
-    """Registra el numero paraguayo y envia el codigo de activacion."""
+@app.route('/api/guardar-email-2fa', methods=['POST'])
+def guardar_email_2fa():
+    """Registra el correo y envia el codigo de activacion."""
     if 'usuario_id' not in session:
         return jsonify({'error': 'No autorizado'}), 401
 
     datos = request.get_json() or {}
-    telefono = normalizar_telefono_py(datos.get('telefono', ''))
-    if not telefono:
-        return jsonify({
-            'error': 'Numero invalido. Usa un movil paraguayo: 0981 123 456 o +595 981 123 456'
-        }), 400
+    email = normalizar_email(datos.get('email', ''))
+    if not email:
+        return jsonify({'error': 'Correo invalido. Ej: nombre@empresa.com'}), 400
 
     user = Usuario.query.get(session['usuario_id'])
-    user.telefono = telefono
+    user.email = email
     user.tfa_habilitado = False
     db.session.commit()
 
     ok, error = iniciar_desafio(
         user,
         minutos=app.config.get('TFA_CODIGO_MINUTOS', 10),
-        sid=app.config.get('TWILIO_ACCOUNT_SID', ''),
-        token=app.config.get('TWILIO_AUTH_TOKEN', ''),
-        from_number=app.config.get('TWILIO_FROM_NUMBER', ''),
+        **_smtp_cfg(),
     )
     if not ok:
         return jsonify({'error': error or 'No se pudo enviar el codigo'}), 500
-    app.logger.info(f'Codigo de activacion 2FA enviado a {enmascarar_telefono(telefono)}')
-    return jsonify({'ok': True, 'telefono_mask': enmascarar_telefono(telefono)})
+    app.logger.info(f'Codigo de activacion 2FA enviado a {enmascarar_email(email)}')
+    return jsonify({'ok': True, 'email_mask': enmascarar_email(email)})
 
 
 @app.route('/api/confirmar-2fa', methods=['POST'])
@@ -1103,7 +1106,7 @@ def configuracion():
         'configuracion.html',
         usuario=session['usuario'],
         tfa_habilitado=bool(user and user.tfa_habilitado),
-        telefono_mask=enmascarar_telefono(user.telefono) if user and user.telefono else '',
+        email_mask=enmascarar_email(user.email) if user and user.email else '',
     )
 
 

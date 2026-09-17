@@ -299,8 +299,8 @@
                             <div>
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <p class="text-sm font-semibold text-white">Verificación en dos pasos (SMS)</p>
-                                        <p class="text-[11px] text-gray-400">Recibe un código en tu celular paraguayo al iniciar sesión</p>
+                                        <p class="text-sm font-semibold text-white">Verificación en dos pasos (Email)</p>
+                                        <p class="text-[11px] text-gray-400">Recibe un código en tu correo al iniciar sesión</p>
                                     </div>
                                     <span id="tfa-estado" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg border
                                         {% if tfa_habilitado %}bg-emerald-500/10 border-emerald-500/30 text-emerald-400{% else %}bg-gray-500/10 border-gray-500/30 text-gray-400{% endif %}">
@@ -310,23 +310,22 @@
 
                                 <div id="tfa-box" class="mt-3 p-4 bg-[#0d0d12] border border-[#232333] rounded-xl space-y-3">
                                     {% if tfa_habilitado %}
-                                        <p class="text-xs text-gray-300">Número verificado: <span class="font-semibold text-white">{{ telefono_mask }}</span></p>
+                                        <p class="text-xs text-gray-300">Correo verificado: <span class="font-semibold text-white">{{ email_mask }}</span></p>
                                         <button onclick="desactivar2FA()" class="text-xs text-red-400 hover:text-red-300 font-medium border border-red-500/30 px-3 py-1.5 rounded-lg hover:bg-red-500/10">
                                             Desactivar verificación en dos pasos
                                         </button>
                                     {% else %}
                                         <div>
-                                            <label class="block text-xs font-medium text-gray-300 mb-1.5">Número de celular (Paraguay)</label>
-                                            <input type="tel" id="tfa-telefono" placeholder="0981 123 456" value="{{ telefono_mask }}"
+                                            <label class="block text-xs font-medium text-gray-300 mb-1.5">Correo electrónico</label>
+                                            <input type="email" id="tfa-email" placeholder="nombre@empresa.com" value="{{ email_mask }}"
                                                 class="w-full bg-[#14141e] border border-[#232333] rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#6c47ff]">
-                                            <p class="text-[10px] text-gray-500 mt-1">Formato: 0981 123 456 o +595 981 123 456</p>
                                         </div>
                                         <button onclick="enviarCodigo2FA()" class="bg-[#6c47ff] hover:bg-[#5b3adb] text-white font-semibold py-2 px-4 rounded-xl text-xs transition-all">
-                                            Enviar código por SMS
+                                            Enviar código al correo
                                         </button>
                                         <div id="tfa-confirmar" class="hidden space-y-3 pt-1">
                                             <div>
-                                                <label class="block text-xs font-medium text-gray-300 mb-1.5">Código recibido por SMS</label>
+                                                <label class="block text-xs font-medium text-gray-300 mb-1.5">Código recibido por correo</label>
                                                 <input type="text" id="tfa-codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="••••••"
                                                     class="w-full bg-[#14141e] border border-[#232333] rounded-xl px-4 py-2.5 text-sm text-white text-center font-bold focus:outline-none focus:border-[#6c47ff]">
                                             </div>
@@ -546,7 +545,7 @@
             } catch (e) { alert('Error al eliminar la cuenta'); }
         }
 
-        // Verificacion en dos pasos (SMS)
+        // Verificacion en dos pasos (Email)
         function csrfHeaders() {
             return {
                 'Content-Type': 'application/json',
@@ -555,18 +554,18 @@
         }
 
         async function enviarCodigo2FA() {
-            const tel = document.getElementById('tfa-telefono').value.trim();
+            const email = document.getElementById('tfa-email').value.trim();
             const msg = document.getElementById('tfa-msg');
-            if (!tel) { msg.textContent = 'Ingresa tu número de celular'; return; }
-            msg.textContent = 'Enviando código por SMS...';
+            if (!email) { msg.textContent = 'Ingresa tu correo electrónico'; return; }
+            msg.textContent = 'Enviando código al correo...';
             try {
-                const res = await fetch('/api/guardar-telefono-2fa', {
+                const res = await fetch('/api/guardar-email-2fa', {
                     method: 'POST', headers: csrfHeaders(),
-                    body: JSON.stringify({ telefono: tel })
+                    body: JSON.stringify({ email })
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) { msg.textContent = data.error || 'Error al enviar el código'; return; }
-                msg.textContent = 'Código enviado a ' + (data.telefono_mask || 'tu número');
+                msg.textContent = 'Código enviado a ' + (data.email_mask || 'tu correo');
                 document.getElementById('tfa-confirmar').classList.remove('hidden');
             } catch (e) { msg.textContent = 'Error de conexión'; }
         }

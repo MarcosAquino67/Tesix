@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     password_hash VARCHAR(255) NOT NULL,
     creado_en DATETIME NULL DEFAULT NULL,
     tema VARCHAR(20) NULL DEFAULT 'oscuro',
+    email VARCHAR(120) NULL DEFAULT NULL,
     telefono VARCHAR(20) NULL DEFAULT NULL,
     tfa_habilitado TINYINT(1) NOT NULL DEFAULT 0,
     tfa_codigo_hash VARCHAR(255) NULL DEFAULT NULL,

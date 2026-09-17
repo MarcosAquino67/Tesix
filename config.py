@@ -39,6 +39,18 @@ class Config:
     RATELIMIT_DEFAULT = '100 per hour'
     RATELIMIT_SCAN = '10 per minute'
 
+    # SMTP (verificacion en dos pasos por email). Si no esta configurado,
+    # el codigo se registra en el log (modo desarrollo) y no se envia email.
+    # Con Gmail: SMTP_HOST=smtp.gmail.com, SMTP_PORT=587 y SMTP_PASS es una
+    # "Contrasena de aplicacion" (gratis, se genera en tu cuenta Google).
+    SMTP_HOST = os.environ.get('SMTP_HOST', '')
+    SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+    SMTP_USER = os.environ.get('SMTP_USER', '')
+    SMTP_PASS = os.environ.get('SMTP_PASS', '')
+    SMTP_FROM = os.environ.get('SMTP_FROM', '') or os.environ.get('SMTP_USER', '')
+    TFA_CODIGO_MINUTOS = int(os.environ.get('TFA_CODIGO_MINUTOS', '10'))
+    TFA_MAX_INTENTOS = int(os.environ.get('TFA_MAX_INTENTOS', '5'))
+
     SESSION_COOKIE_SECURE = False
     SESSION_COOKIE_HTTPONLY = True
     PERMANENT_SESSION_LIFETIME = 1800

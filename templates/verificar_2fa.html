@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>SecureScan - Verificación en dos pasos</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { background-color: #0d0d12; font-family: 'Inter', sans-serif; }
+        .codigo-input { letter-spacing: 0.5em; text-indent: 0.5em; }
+    </style>
+</head>
+<body class="min-h-screen text-gray-200 flex items-center justify-center p-6">
+
+    <div class="w-full max-w-md">
+        <div class="flex items-center justify-center gap-3 mb-8">
+            <div class="bg-[#6c47ff]/20 p-2.5 rounded-xl border border-[#6c47ff]/30 text-[#6c47ff]">
+                <i data-lucide="shield" class="w-7 h-7"></i>
+            </div>
+            <span class="text-xl font-bold text-white tracking-wide">SecureScan</span>
+        </div>
+
+        <div class="bg-[#14141e] border border-[#1e1e2d] rounded-2xl p-8 space-y-6">
+            <div class="text-center">
+                <div class="mx-auto w-14 h-14 rounded-2xl bg-[#6c47ff]/15 border border-[#6c47ff]/30 flex items-center justify-center mb-4">
+                    <i data-lucide="mail" class="w-7 h-7 text-[#8b5cf6]"></i>
+                </div>
+                <h1 class="text-lg font-bold text-white">Verificación en dos pasos</h1>
+                <p class="text-xs text-gray-400 mt-2">
+                    Enviamos un código de 6 dígitos a tu correo<br>
+                    <span class="text-gray-200 font-semibold">{{ email_mask }}</span>
+                </p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="px-4 py-3 rounded-xl text-sm font-medium border
+                            {% if category == 'success' %}bg-emerald-500/10 border-emerald-500/30 text-emerald-400
+                            {% elif category == 'error' %}bg-red-500/10 border-red-500/30 text-red-400
+                            {% else %}bg-blue-500/10 border-blue-500/30 text-blue-400{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form action="/verificar-2fa" method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="block text-xs font-medium text-gray-300 mb-1.5 text-center">Código de verificación</label>
+                    <input type="text" name="codigo" required inputmode="numeric" pattern="[0-9]{6}"
+                        maxlength="6" minlength="6" autocomplete="one-time-code" autofocus
+                        placeholder="••••••"
+                        class="codigo-input w-full bg-[#0d0d12] border border-[#232333] rounded-xl px-4 py-3 text-xl text-white text-center font-bold focus:outline-none focus:border-[#6c47ff]">
+                    <p class="text-[10px] text-gray-500 mt-1 text-center">El código vence en 10 minutos</p>
+                </div>
+                <button type="submit" class="w-full bg-[#6c47ff] hover:bg-[#5b3adb] text-white font-semibold py-3 px-5 rounded-xl text-sm transition-all">
+                    Verificar e ingresar
+                </button>
+            </form>
+
+            <div class="text-center space-y-2">
+                <button onclick="reenviarCodigo()" id="btn-reenviar"
+                    class="text-xs text-[#8b5cf6] hover:text-[#a78bfa] font-medium">
+                    Reenviar código al correo
+                </button>
+                <p id="reenviar-msg" class="text-[11px] text-gray-500"></p>
+                <a href="/logout" class="block text-xs text-gray-500 hover:text-gray-300">Cancelar y volver al inicio</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        async function reenviarCodigo() {
+            const btn = document.getElementById('btn-reenviar');
+            const msg = document.getElementById('reenviar-msg');
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            msg.textContent = 'Enviando...';
+            try {
+                const res = await fetch('/api/reenviar-codigo', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    }
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { msg.textContent = data.error || 'No se pudo reenviar'; }
+                else { msg.textContent = data.mensaje || 'Código reenviado'; }
+            } catch (e) { msg.textContent = 'Error de conexión'; }
+            setTimeout(() => { btn.disabled = false; btn.classList.remove('opacity-50'); }, 30000);
+        }
+    </script>
+</body>
+</html>

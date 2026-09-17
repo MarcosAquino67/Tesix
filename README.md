@@ -168,6 +168,49 @@ docker-compose exec app pytest
 
 ---
 
+## 🔐 Verificación en dos pasos (por email, gratis)
+
+Cada usuario puede activarla desde **Configuración → Seguridad**:
+
+1. Ingresa tu correo electrónico
+2. Recibes un código de 6 dígitos por email y lo confirmas
+3. Desde entonces, cada login pide contraseña + código del correo
+
+### Configurar el correo (Gmail, gratis)
+
+1. En tu cuenta Google activa la **verificación en 2 pasos**
+2. Genera una **Contraseña de aplicación** en [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) (16 letras, gratis)
+3. En `.env`:
+   ```env
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=tu_correo@gmail.com
+   SMTP_PASS=xxxx_xxxx_xxxx_xxxx
+   SMTP_FROM=tu_correo@gmail.com
+   ```
+   > Usa la contraseña de aplicación como `SMTP_PASS`, NO tu contraseña normal.
+4. Reconstruye: `docker-compose up -d --build`
+
+> Sin SMTP configurado, el código se escribe en el log (`logs/scanner.log`) para desarrollo.
+
+### Migrar base de datos existente
+
+Si ya tienes datos en MySQL, agrega las columnas 2FA:
+
+```sql
+ALTER TABLE usuarios
+  ADD COLUMN email VARCHAR(120) NULL,
+  ADD COLUMN telefono VARCHAR(20) NULL,
+  ADD COLUMN tfa_habilitado TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN tfa_codigo_hash VARCHAR(255) NULL,
+  ADD COLUMN tfa_expira_en DATETIME NULL,
+  ADD COLUMN tfa_intentos INT NOT NULL DEFAULT 0;
+```
+
+(Instalaciones nuevas con Docker ya incluyen estas columnas vía `init.sql`. SQLite local se crea solo con `db.create_all()`.)
+
+---
+
 ## 🧪 Tests
 
 ```bash

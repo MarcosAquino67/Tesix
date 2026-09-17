@@ -13,7 +13,8 @@ class Usuario(db.Model):
     creado_en = db.Column(db.DateTime, default=datetime.utcnow)
     tema = db.Column(db.String(20), default='oscuro')
 
-    # Verificacion en dos pasos por SMS (opcional por usuario)
+    # Verificacion en dos pasos por email (opcional por usuario)
+    email = db.Column(db.String(120), nullable=True)
     telefono = db.Column(db.String(20), nullable=True)
     tfa_habilitado = db.Column(db.Boolean, default=False, nullable=False)
     tfa_codigo_hash = db.Column(db.String(255), nullable=True)
