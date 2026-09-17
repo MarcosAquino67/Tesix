@@ -755,6 +755,11 @@ def ejecutar_escaneo():
         if 'usuario_id' not in session:
             return jsonify({'error': 'No autorizado'}), 401
 
+        # La cuenta pudo ser eliminada con una sesion aun activa
+        if not Usuario.query.get(session['usuario_id']):
+            session.clear()
+            return jsonify({'error': 'Sesión expirada. Inicia sesión de nuevo.'}), 401
+
         datos = request.get_json() or {}
         tipo_escaneo = datos.get('tipo', 'puertos')
         target = datos.get('target', '').strip()

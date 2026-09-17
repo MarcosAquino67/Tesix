@@ -263,6 +263,12 @@
                 console.log('Status:', response.status);
                 const data = await response.json();
 
+                if (!response.ok || data.error) {
+                    alert('Error: ' + (data.error || ('HTTP ' + response.status)));
+                    volverASeleccion();
+                    return;
+                }
+
                 if (data.async) {
                     mostrarResultados(await esperarTrabajo(data.trabajo_id));
                     return;
@@ -353,6 +359,12 @@
                 });
 
                 const data = await response.json();
+
+                if (!response.ok || data.error) {
+                    alert('Error: ' + (data.error || ('HTTP ' + response.status)));
+                    volverASeleccion();
+                    return;
+                }
 
                 document.getElementById('res-titulo').innerText = data.titulo || 'Resultados del Análisis';
                 document.getElementById('res-subtitulo').innerText = data.subtitulo || '';
