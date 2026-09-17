@@ -255,19 +255,40 @@
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <div>
                                 <label class="block text-xs font-medium text-gray-300 mb-1.5">Contraseña actual</label>
-                                <input type="password" name="password_actual" required
-                                    class="w-full bg-[#0d0d12] border border-[#232333] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#6c47ff]">
+                                <div class="relative">
+                                    <input type="password" id="pass-actual" name="password_actual" required
+                                        class="w-full bg-[#0d0d12] border border-[#232333] rounded-xl px-4 py-3 pr-11 text-sm text-white focus:outline-none focus:border-[#6c47ff]">
+                                    <button type="button" onclick="toggleClave('pass-actual', this)" title="Mostrar contraseña"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-200 transition-colors">
+                                        <svg class="ojo-abierto hidden w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                        <svg class="ojo-cerrado w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    </button>
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-300 mb-1.5">Nueva contraseña</label>
-                                <input type="password" name="password_nueva" required minlength="6"
-                                    class="w-full bg-[#0d0d12] border border-[#232333] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#6c47ff]">
+                                <div class="relative">
+                                    <input type="password" id="pass-nueva" name="password_nueva" required minlength="6"
+                                        class="w-full bg-[#0d0d12] border border-[#232333] rounded-xl px-4 py-3 pr-11 text-sm text-white focus:outline-none focus:border-[#6c47ff]">
+                                    <button type="button" onclick="toggleClave('pass-nueva', this)" title="Mostrar contraseña"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-200 transition-colors">
+                                        <svg class="ojo-abierto hidden w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                        <svg class="ojo-cerrado w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    </button>
+                                </div>
                                 <p class="text-[10px] text-gray-500 mt-1">Mínimo 6 caracteres</p>
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-300 mb-1.5">Confirmar nueva contraseña</label>
-                                <input type="password" name="password_confirmar" required minlength="6"
-                                    class="w-full bg-[#0d0d12] border border-[#232333] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#6c47ff]">
+                                <div class="relative">
+                                    <input type="password" id="pass-confirmar" name="password_confirmar" required minlength="6"
+                                        class="w-full bg-[#0d0d12] border border-[#232333] rounded-xl px-4 py-3 pr-11 text-sm text-white focus:outline-none focus:border-[#6c47ff]">
+                                    <button type="button" onclick="toggleClave('pass-confirmar', this)" title="Mostrar contraseña"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-200 transition-colors">
+                                        <svg class="ojo-abierto hidden w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                        <svg class="ojo-cerrado w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    </button>
+                                </div>
                             </div>
                             <button type="submit" class="bg-[#6c47ff] hover:bg-[#5b3adb] text-white font-semibold py-2.5 px-5 rounded-xl text-sm transition-all">
                                 Actualizar contraseña
@@ -275,15 +296,47 @@
                         </form>
 
                         <div class="pt-4 border-t border-[#232333] space-y-3">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm font-semibold text-white">Verificación en dos pasos</p>
-                                    <p class="text-[11px] text-gray-400">Añade una capa extra de seguridad al iniciar sesión</p>
+                            <div>
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm font-semibold text-white">Verificación en dos pasos (SMS)</p>
+                                        <p class="text-[11px] text-gray-400">Recibe un código en tu celular paraguayo al iniciar sesión</p>
+                                    </div>
+                                    <span id="tfa-estado" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg border
+                                        {% if tfa_habilitado %}bg-emerald-500/10 border-emerald-500/30 text-emerald-400{% else %}bg-gray-500/10 border-gray-500/30 text-gray-400{% endif %}">
+                                        {% if tfa_habilitado %}ACTIVO{% else %}INACTIVO{% endif %}
+                                    </span>
                                 </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="toggle-2fa">
-                                    <span class="toggle-slider"></span>
-                                </label>
+
+                                <div id="tfa-box" class="mt-3 p-4 bg-[#0d0d12] border border-[#232333] rounded-xl space-y-3">
+                                    {% if tfa_habilitado %}
+                                        <p class="text-xs text-gray-300">Número verificado: <span class="font-semibold text-white">{{ telefono_mask }}</span></p>
+                                        <button onclick="desactivar2FA()" class="text-xs text-red-400 hover:text-red-300 font-medium border border-red-500/30 px-3 py-1.5 rounded-lg hover:bg-red-500/10">
+                                            Desactivar verificación en dos pasos
+                                        </button>
+                                    {% else %}
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-300 mb-1.5">Número de celular (Paraguay)</label>
+                                            <input type="tel" id="tfa-telefono" placeholder="0981 123 456" value="{{ telefono_mask }}"
+                                                class="w-full bg-[#14141e] border border-[#232333] rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#6c47ff]">
+                                            <p class="text-[10px] text-gray-500 mt-1">Formato: 0981 123 456 o +595 981 123 456</p>
+                                        </div>
+                                        <button onclick="enviarCodigo2FA()" class="bg-[#6c47ff] hover:bg-[#5b3adb] text-white font-semibold py-2 px-4 rounded-xl text-xs transition-all">
+                                            Enviar código por SMS
+                                        </button>
+                                        <div id="tfa-confirmar" class="hidden space-y-3 pt-1">
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-300 mb-1.5">Código recibido por SMS</label>
+                                                <input type="text" id="tfa-codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="••••••"
+                                                    class="w-full bg-[#14141e] border border-[#232333] rounded-xl px-4 py-2.5 text-sm text-white text-center font-bold focus:outline-none focus:border-[#6c47ff]">
+                                            </div>
+                                            <button onclick="confirmar2FA()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-xl text-xs transition-all">
+                                                Activar verificación en dos pasos
+                                            </button>
+                                        </div>
+                                    {% endif %}
+                                    <p id="tfa-msg" class="text-[11px] text-gray-500"></p>
+                                </div>
                             </div>
                             <div class="flex items-center justify-between">
                                 <div>
@@ -374,6 +427,16 @@
 
     <script>
         lucide.createIcons();
+
+        // Mostrar / ocultar contrasena (ojito)
+        function toggleClave(id, btn) {
+            const input = document.getElementById(id);
+            const mostrar = input.type === 'password';
+            input.type = mostrar ? 'text' : 'password';
+            btn.querySelector('.ojo-abierto').classList.toggle('hidden', !mostrar);
+            btn.querySelector('.ojo-cerrado').classList.toggle('hidden', mostrar);
+            btn.title = mostrar ? 'Ocultar contraseña' : 'Mostrar contraseña';
+        }
 
         // Tabs
         function mostrarSeccion(seccion) {
@@ -481,6 +544,58 @@
                 if (!res.ok) { alert(data.error || 'Error al eliminar la cuenta'); return; }
                 window.location.href = '/';
             } catch (e) { alert('Error al eliminar la cuenta'); }
+        }
+
+        // Verificacion en dos pasos (SMS)
+        function csrfHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            };
+        }
+
+        async function enviarCodigo2FA() {
+            const tel = document.getElementById('tfa-telefono').value.trim();
+            const msg = document.getElementById('tfa-msg');
+            if (!tel) { msg.textContent = 'Ingresa tu número de celular'; return; }
+            msg.textContent = 'Enviando código por SMS...';
+            try {
+                const res = await fetch('/api/guardar-telefono-2fa', {
+                    method: 'POST', headers: csrfHeaders(),
+                    body: JSON.stringify({ telefono: tel })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { msg.textContent = data.error || 'Error al enviar el código'; return; }
+                msg.textContent = 'Código enviado a ' + (data.telefono_mask || 'tu número');
+                document.getElementById('tfa-confirmar').classList.remove('hidden');
+            } catch (e) { msg.textContent = 'Error de conexión'; }
+        }
+
+        async function confirmar2FA() {
+            const codigo = document.getElementById('tfa-codigo').value.trim();
+            const msg = document.getElementById('tfa-msg');
+            if (codigo.length !== 6) { msg.textContent = 'El código tiene 6 dígitos'; return; }
+            msg.textContent = 'Verificando...';
+            try {
+                const res = await fetch('/api/confirmar-2fa', {
+                    method: 'POST', headers: csrfHeaders(),
+                    body: JSON.stringify({ codigo })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { msg.textContent = data.error || 'Código incorrecto'; return; }
+                alert('Verificación en dos pasos activada');
+                location.reload();
+            } catch (e) { msg.textContent = 'Error de conexión'; }
+        }
+
+        async function desactivar2FA() {
+            if (!confirm('¿Desactivar la verificación en dos pasos?')) return;
+            try {
+                const res = await fetch('/api/desactivar-2fa', { method: 'POST', headers: csrfHeaders() });
+                if (!res.ok) { alert('No se pudo desactivar'); return; }
+                alert('Verificación en dos pasos desactivada');
+                location.reload();
+            } catch (e) { alert('Error de conexión'); }
         }
 
         // Cargar tema guardado al iniciar

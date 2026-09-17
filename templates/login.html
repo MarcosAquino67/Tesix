@@ -92,8 +92,15 @@
 
                 <div>
                     <label class="block text-xs font-medium text-gray-300 mb-1.5">Contraseña</label>
-                    <input type="password" id="clave-input" name="clave" placeholder="••••••••" required
-                        class="w-full bg-[#0b0b10] border border-[#2d2d3f] rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#6c47ff] transition-colors">
+                    <div class="relative">
+                        <input type="password" id="clave-input" name="clave" placeholder="••••••••" required
+                            class="w-full bg-[#0b0b10] border border-[#2d2d3f] rounded-lg px-4 py-3 pr-11 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#6c47ff] transition-colors">
+                        <button type="button" onclick="toggleClave('clave-input', this)" title="Mostrar contraseña"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-200 transition-colors">
+                            <svg class="ojo-abierto hidden w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            <svg class="ojo-cerrado w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
                     <!-- Indicador de fortaleza -->
                     <div id="strength-container" class="hidden mt-2">
                         <div class="flex items-center justify-between mb-1">
@@ -109,7 +116,7 @@
 
                 <div id="opciones-login" class="flex items-center justify-between text-xs pt-1">
                     <label class="flex items-center text-gray-400 cursor-pointer">
-                        <input type="checkbox" class="rounded bg-[#0b0b10] border-gray-700 text-[#6c47ff] focus:ring-0 mr-2">
+                        <input type="checkbox" name="recordarme" value="1" class="rounded bg-[#0b0b10] border-gray-700 text-[#6c47ff] focus:ring-0 mr-2">
                         Recordarme
                     </label>
                     <a href="/recuperar" class="text-[#8b5cf6] hover:underline transition-all">¿Olvidaste tu contraseña?</a>
@@ -126,6 +133,15 @@
 
     <!-- Script JS para alternar modo Login / Registro sin recargar -->
     <script>
+        function toggleClave(id, btn) {
+            const input = document.getElementById(id);
+            const mostrar = input.type === 'password';
+            input.type = mostrar ? 'text' : 'password';
+            btn.querySelector('.ojo-abierto').classList.toggle('hidden', !mostrar);
+            btn.querySelector('.ojo-cerrado').classList.toggle('hidden', mostrar);
+            btn.title = mostrar ? 'Ocultar contraseña' : 'Mostrar contraseña';
+        }
+
         function setModo(modo) {
             const form = document.getElementById('auth-form');
             const tabLogin = document.getElementById('tab-login');

@@ -7,7 +7,7 @@ import secrets
 import logging
 import urllib.request
 import ssl
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,6 +21,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from models import db, Usuario, Escaneo, ResultadoEscaneo, Vulnerabilidad, TrabajoEscaneo
 from config import Config
+from sms_2fa import (
+    normalizar_telefono_py,
+    enmascarar_telefono,
+    iniciar_desafio,
+    verificar_codigo,
+    limpiar_desafio,
+)
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Token compartido entre el servidor y agente_local.py.
@@ -521,15 +528,166 @@ def login():
 
     user = Usuario.query.filter_by(username=usuario).first()
     if user and check_password_hash(user.password_hash, clave):
+        # Solo persiste la sesion al cerrar el navegador si marco "Recordarme"
+        recordar = bool(request.form.get('recordarme'))
+        # Segundo factor por SMS si el usuario lo tiene activo
+        if user.tfa_habilitado and user.telefono:
+            ok, error = iniciar_desafio(
+                user,
+                minutos=app.config.get('TFA_CODIGO_MINUTOS', 10),
+                sid=app.config.get('TWILIO_ACCOUNT_SID', ''),
+                token=app.config.get('TWILIO_AUTH_TOKEN', ''),
+                from_number=app.config.get('TWILIO_FROM_NUMBER', ''),
+            )
+            if not ok:
+                flash(error or 'No se pudo enviar el codigo SMS', 'error')
+                return redirect('/')
+            session['tfa_pendiente'] = user.id
+            session['recordarme'] = recordar
+            app.logger.info(f'Codigo 2FA enviado a {enmascarar_telefono(user.telefono)} ({usuario})')
+            return redirect('/verificar-2fa')
+
         session['usuario'] = user.username
         session['usuario_id'] = user.id
-        session.permanent = True
+        session.permanent = recordar
         app.logger.info(f'Login exitoso: {usuario}')
         return redirect('/dashboard')
 
     app.logger.warning(f'Login fallido para usuario: {usuario}')
     flash('Usuario o contrasena incorrectos', 'error')
     return redirect('/')
+
+
+# ----------------------------------------------------------------------
+# VERIFICACION EN DOS PASOS POR SMS
+# ----------------------------------------------------------------------
+def _usuario_tfa_pendiente():
+    user_id = session.get('tfa_pendiente')
+    if not user_id:
+        return None
+    return Usuario.query.get(user_id)
+
+
+@app.route('/verificar-2fa', methods=['GET', 'POST'])
+@limiter.limit("10 per minute")
+def verificar_2fa():
+    user = _usuario_tfa_pendiente()
+    if not user:
+        flash('No hay una verificacion pendiente. Inicia sesion.', 'error')
+        return redirect('/')
+
+    if user.tfa_expira_en and datetime.utcnow() > user.tfa_expira_en:
+        limpiar_desafio(user)
+        session.pop('tfa_pendiente', None)
+        flash('El codigo vencio. Inicia sesion de nuevo.', 'error')
+        return redirect('/')
+
+    if request.method == 'POST':
+        codigo = request.form.get('codigo', '')
+        ok, error = verificar_codigo(
+            user, codigo,
+            max_intentos=app.config.get('TFA_MAX_INTENTOS', 5),
+        )
+        if ok:
+            session.pop('tfa_pendiente', None)
+            session['usuario'] = user.username
+            session['usuario_id'] = user.id
+            session.permanent = session.pop('recordarme', False)
+            app.logger.info(f'Login 2FA exitoso: {user.username}')
+            return redirect('/dashboard')
+        if 'Inicia sesion de nuevo' in (error or ''):
+            session.pop('tfa_pendiente', None)
+            flash(error, 'error')
+            return redirect('/')
+        flash(error, 'error')
+        return redirect('/verificar-2fa')
+
+    return render_template(
+        'verificar_2fa.html',
+        telefono_mask=enmascarar_telefono(user.telefono),
+    )
+
+
+@app.route('/api/reenviar-codigo', methods=['POST'])
+@limiter.limit("3 per minute")
+def reenviar_codigo():
+    user = _usuario_tfa_pendiente()
+    if not user:
+        return jsonify({'error': 'No hay una verificacion pendiente'}), 401
+    ok, error = iniciar_desafio(
+        user,
+        minutos=app.config.get('TFA_CODIGO_MINUTOS', 10),
+        sid=app.config.get('TWILIO_ACCOUNT_SID', ''),
+        token=app.config.get('TWILIO_AUTH_TOKEN', ''),
+        from_number=app.config.get('TWILIO_FROM_NUMBER', ''),
+    )
+    if not ok:
+        return jsonify({'error': error or 'No se pudo reenviar el codigo'}), 500
+    return jsonify({'ok': True, 'mensaje': 'Codigo reenviado por SMS'})
+
+
+@app.route('/api/guardar-telefono-2fa', methods=['POST'])
+def guardar_telefono_2fa():
+    """Registra el numero paraguayo y envia el codigo de activacion."""
+    if 'usuario_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+
+    datos = request.get_json() or {}
+    telefono = normalizar_telefono_py(datos.get('telefono', ''))
+    if not telefono:
+        return jsonify({
+            'error': 'Numero invalido. Usa un movil paraguayo: 0981 123 456 o +595 981 123 456'
+        }), 400
+
+    user = Usuario.query.get(session['usuario_id'])
+    user.telefono = telefono
+    user.tfa_habilitado = False
+    db.session.commit()
+
+    ok, error = iniciar_desafio(
+        user,
+        minutos=app.config.get('TFA_CODIGO_MINUTOS', 10),
+        sid=app.config.get('TWILIO_ACCOUNT_SID', ''),
+        token=app.config.get('TWILIO_AUTH_TOKEN', ''),
+        from_number=app.config.get('TWILIO_FROM_NUMBER', ''),
+    )
+    if not ok:
+        return jsonify({'error': error or 'No se pudo enviar el codigo'}), 500
+    app.logger.info(f'Codigo de activacion 2FA enviado a {enmascarar_telefono(telefono)}')
+    return jsonify({'ok': True, 'telefono_mask': enmascarar_telefono(telefono)})
+
+
+@app.route('/api/confirmar-2fa', methods=['POST'])
+def confirmar_2fa():
+    """Confirma el codigo de activacion y habilita el 2FA."""
+    if 'usuario_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+
+    datos = request.get_json() or {}
+    user = Usuario.query.get(session['usuario_id'])
+    ok, error = verificar_codigo(
+        user, datos.get('codigo', ''),
+        max_intentos=app.config.get('TFA_MAX_INTENTOS', 5),
+    )
+    if not ok:
+        return jsonify({'error': error}), 400
+    user.tfa_habilitado = True
+    db.session.commit()
+    app.logger.info(f'2FA activado para: {user.username}')
+    return jsonify({'ok': True})
+
+
+@app.route('/api/desactivar-2fa', methods=['POST'])
+def desactivar_2fa():
+    if 'usuario_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 401
+
+    user = Usuario.query.get(session['usuario_id'])
+    user.tfa_habilitado = False
+    db.session.commit()
+    limpiar_desafio(user)
+    app.logger.info(f'2FA desactivado para: {user.username}')
+    return jsonify({'ok': True})
 
 
 @app.route('/dashboard')
@@ -935,7 +1093,13 @@ def configuracion():
     if 'usuario' not in session:
         flash('Debes iniciar sesion primero', 'error')
         return redirect('/')
-    return render_template('configuracion.html', usuario=session['usuario'])
+    user = Usuario.query.get(session.get('usuario_id'))
+    return render_template(
+        'configuracion.html',
+        usuario=session['usuario'],
+        tfa_habilitado=bool(user and user.tfa_habilitado),
+        telefono_mask=enmascarar_telefono(user.telefono) if user and user.telefono else '',
+    )
 
 
 @app.route('/api/actualizar-perfil', methods=['POST'])
