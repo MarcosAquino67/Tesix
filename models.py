@@ -13,6 +13,13 @@ class Usuario(db.Model):
     creado_en = db.Column(db.DateTime, default=datetime.utcnow)
     tema = db.Column(db.String(20), default='oscuro')
 
+    # Verificacion en dos pasos por SMS (opcional por usuario)
+    telefono = db.Column(db.String(20), nullable=True)
+    tfa_habilitado = db.Column(db.Boolean, default=False, nullable=False)
+    tfa_codigo_hash = db.Column(db.String(255), nullable=True)
+    tfa_expira_en = db.Column(db.DateTime, nullable=True)
+    tfa_intentos = db.Column(db.Integer, default=0, nullable=False)
+
     escaneos = db.relationship('Escaneo', backref='usuario', lazy=True,
                                cascade='all, delete-orphan')
 
@@ -83,7 +90,7 @@ class Vulnerabilidad(db.Model):
     descripcion = db.Column(db.Text)
     tipo = db.Column(db.String(50))
     severity = db.Column(db.String(20))
-    risk = db.Column(db.String(20))
+    risk = db.Column(db.Text)
 
     # Vínculo bidireccional con Escaneo (opcional: backref)
     escaneo = db.relationship("Escaneo", backref="vulnerabilidades", lazy=True)
