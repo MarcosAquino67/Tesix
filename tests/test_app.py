@@ -2,6 +2,11 @@ import os
 import pytest
 
 os.environ['FLASK_ENV'] = 'testing'
+# AISLAMIENTO CRITICO: forzar SQLite en memoria ANTES de importar la app.
+# Cambiar SQLALCHEMY_DATABASE_URI despues no sirve: Flask-SQLAlchemy cachea
+# el engine creado al importar (MySQL) y el drop_all del fixture borraria
+# las tablas de la base de datos real.
+os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
 from app import app, db, limiter
 
