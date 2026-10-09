@@ -94,9 +94,10 @@
             </div>
 
             <div class="flex items-center gap-5">
-                <button class="relative text-gray-400 hover:text-white">
+                <button type="button" data-avisos title="Avisos de seguridad" aria-label="Avisos de seguridad"
+                        class="relative text-gray-400 hover:text-white transition-colors">
                     <i data-lucide="bell" class="w-5 h-5"></i>
-                    <span id="badge-alertas" class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full hidden"></span>
+                    <span data-avisos-badge class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center"></span>
                 </button>
                 <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-full bg-[#6c47ff]/20 border border-[#6c47ff]/40 flex items-center justify-center font-bold text-xs text-[#8b5cf6]">
@@ -343,8 +344,7 @@
                 document.getElementById('dona-medias').innerText = medias;
                 document.getElementById('dona-bajas').innerText = bajas;
 
-                // 4. Badge de alertas si hay vulnerabilidades altas
-                document.getElementById('badge-alertas').classList.toggle('hidden', altas === 0);
+                // 4. El badge de avisos lo maneja /static/js/avisos.js (campanita)
 
                 // 5. Último análisis: detalle + dispositivos
                 const tbody = document.getElementById('tabla-dash-dispositivos');
@@ -414,5 +414,6 @@ document.body.classList.add('density-' + savedDensity);
             document.body.classList.add('density-' + (localStorage.getItem('densidad') || 'normal'));
         });
     </script>
+    <script src="/static/js/avisos.js" defer></script>
 </body>
 </html>

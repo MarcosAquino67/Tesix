@@ -124,9 +124,10 @@
             <h1 class="text-base font-semibold text-white">Configuración</h1>
 
             <div class="flex items-center gap-5">
-                <button class="relative text-gray-400 hover:text-white">
+                <button type="button" data-avisos title="Avisos de seguridad" aria-label="Avisos de seguridad"
+                        class="relative text-gray-400 hover:text-white transition-colors">
                     <i data-lucide="bell" class="w-5 h-5"></i>
-                    <span id="notif-dot" class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                    <span data-avisos-badge class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center"></span>
                 </button>
                 <div class="flex items-center gap-3">
                     <div id="avatar-circle" class="w-8 h-8 rounded-full bg-[#6c47ff]/20 border border-[#6c47ff]/40 flex items-center justify-center font-bold text-xs text-[#8b5cf6]">
@@ -603,5 +604,6 @@
         // Densidad guardada
         aplicarDensidad(localStorage.getItem('densidad') || 'normal');
     </script>
+    <script src="/static/js/avisos.js" defer></script>
 </body>
 </html>
