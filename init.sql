@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
     tfa_codigo_hash VARCHAR(255) NULL DEFAULT NULL,
     tfa_expira_en DATETIME NULL DEFAULT NULL,
     tfa_intentos INT NOT NULL DEFAULT 0,
+    reset_token_hash VARCHAR(255) NULL DEFAULT NULL,
+    reset_expira_en DATETIME NULL DEFAULT NULL,
+    reset_intentos INT NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     UNIQUE INDEX ix_usuarios_username (username ASC) VISIBLE
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
@@ -57,4 +60,22 @@ CREATE TABLE IF NOT EXISTS vulnerabilidades (
     PRIMARY KEY (id),
     INDEX fk_vul_escaneo (escaneo_id ASC) VISIBLE,
     CONSTRAINT fk_vul_escaneo FOREIGN KEY (escaneo_id) REFERENCES escaneos (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS trabajos_escaneo (
+    id INT NOT NULL AUTO_INCREMENT,
+    usuario_id INT NOT NULL,
+    tipo VARCHAR(30) NOT NULL DEFAULT 'dispositivos',
+    target VARCHAR(255) NULL DEFAULT NULL,
+    estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+    escaneo_id INT NULL DEFAULT NULL,
+    mensaje_error TEXT NULL DEFAULT NULL,
+    progreso VARCHAR(255) NULL DEFAULT NULL,
+    creado_en DATETIME NULL DEFAULT NULL,
+    completado_en DATETIME NULL DEFAULT NULL,
+    PRIMARY KEY (id),
+    INDEX ix_trabajos_estado (estado ASC) VISIBLE,
+    INDEX ix_trabajos_usuario_id (usuario_id ASC) VISIBLE,
+    CONSTRAINT fk_trab_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE,
+    CONSTRAINT fk_trab_escaneo FOREIGN KEY (escaneo_id) REFERENCES escaneos (id) ON DELETE SET NULL
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

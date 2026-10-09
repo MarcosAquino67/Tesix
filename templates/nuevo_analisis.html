@@ -287,20 +287,18 @@
         async function esperarTrabajo(trabajoId, timeoutMs = 120000) {
             const detalle = document.getElementById('progreso-detalle');
             const inicio = Date.now();
-            let intentos = 0;
             while (Date.now() - inicio < timeoutMs) {
-                await new Promise(r => setTimeout(r, 3000));
+                await new Promise(r => setTimeout(r, 1500));
                 const res = await fetch('/api/trabajo/' + trabajoId, {
                     headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content }
                 });
                 if (!res.ok) throw new Error('No se pudo consultar el estado del escaneo');
                 const estado = await res.json();
+                if (detalle && estado.progreso) detalle.innerText = '📡 ' + estado.progreso + '...';
                 if (estado.estado === 'completado') return estado;
-                if (estado.estado === 'error') throw new Error(estado.error || 'El agente reportó un error');
-                intentos++;
-                if (detalle) detalle.innerText = '📡 Escaneo de red encolado. Esperando al agente local (intento ' + intentos + ')... Asegúrate de que agente_local.py esté corriendo en la PC.';
+                if (estado.estado === 'error') throw new Error(estado.error || 'El escaneo reportó un error');
             }
-            throw new Error('Tiempo de espera agotado: el agente no respondió. ¿Está corriendo agente_local.py?');
+            throw new Error('Tiempo de espera agotado. Vuelve a intentarlo.');
         }
 
         function mostrarResultados(data) {

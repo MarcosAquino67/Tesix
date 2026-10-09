@@ -8,6 +8,12 @@ os.environ['FLASK_ENV'] = 'testing'
 # las tablas de la base de datos real.
 os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
+# Los tests no deben enviar emails reales: se vacian las variables SMTP del
+# .env local (load_dotenv no pisa variables ya definidas), asi los
+# codigos/enlaces se registran en el log (modo desarrollo).
+for _var_smtp in ('SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'):
+    os.environ[_var_smtp] = ''
+
 from app import app, db, limiter
 
 
@@ -274,3 +280,241 @@ def test_verificar_2fa_codigo_mal(client, monkeypatch):
     response = client.post('/verificar-2fa', data={'codigo': '000000'})
     assert response.status_code == 302
     assert '/verificar-2fa' in response.headers['Location']
+
+
+# ----------------------------------------------------------------------
+# RECUPERACION DE CONTRASENA POR EMAIL
+# ----------------------------------------------------------------------
+def _token_de_respuesta(respuesta):
+    import re as _re
+    cuerpo = respuesta.get_data(as_text=True)
+    match = _re.search(r'token=([A-Za-z0-9_\-]+)', cuerpo)
+    assert match, 'No se encontro el enlace de restablecimiento en la respuesta'
+    return match.group(1)
+
+
+def test_recuperar_no_expone_contrasena(client):
+    client.post('/registro', data={'usuario': 'victima', 'clave': 'pass123'})
+    response = client.post('/recuperar', data={'username': 'victima'}, follow_redirects=True)
+    assert response.status_code == 200
+    cuerpo = response.get_data(as_text=True)
+    assert 'Contrasena temporal' not in cuerpo
+
+
+def test_recuperar_usuario_inexistente_no_revela(client):
+    response = client.post('/recuperar', data={'username': 'fantasma'}, follow_redirects=True)
+    assert response.status_code == 200
+    assert b'enlace' in response.data.lower()
+
+
+def test_flujo_reset_completo(client):
+    import re as _re
+    from models import Usuario
+    from werkzeug.security import check_password_hash
+
+    with app.app_context():
+        user = Usuario.query.filter_by(username='testuser').first() if Usuario.query.count() else None
+    client.post('/registro', data={'usuario': 'resetuser', 'clave': 'pass123'})
+    with app.app_context():
+        usuario = Usuario.query.filter_by(username='resetuser').first()
+        usuario.email = 'reset@empresa.com'
+        db.session.commit()
+
+    respuesta = client.post('/recuperar', data={'username': 'resetuser'}, follow_redirects=True)
+    token = _token_de_respuesta(respuesta)
+
+    respuesta = client.get(f'/restablecer?token={token}')
+    assert respuesta.status_code == 200
+
+    respuesta = client.post(f'/restablecer?token={token}', data={
+        'clave': 'nuevaclave123',
+        'confirmar': 'nuevaclave123',
+    }, follow_redirects=True)
+    assert respuesta.status_code == 200
+
+    with app.app_context():
+        usuario = Usuario.query.filter_by(username='resetuser').first()
+        assert check_password_hash(usuario.password_hash, 'nuevaclave123')
+        assert usuario.reset_token_hash is None
+
+    # La nueva contrasena funciona para entrar
+    client.get('/logout')
+    respuesta = client.post('/login', data={
+        'usuario': 'resetuser', 'clave': 'nuevaclave123'
+    }, follow_redirects=True)
+    assert respuesta.status_code == 200
+
+
+def test_reset_token_invalido(client):
+    respuesta = client.post('/restablecer?token=token-falso', data={
+        'clave': 'nuevaclave123',
+        'confirmar': 'nuevaclave123',
+    }, follow_redirects=True)
+    assert respuesta.status_code == 200
+    assert b'no es valido' in respuesta.data.lower()
+
+
+def test_reset_contrasenas_no_coinciden(client):
+    import re as _re
+    from models import Usuario
+    client.post('/registro', data={'usuario': 'resetuser2', 'clave': 'pass123'})
+    with app.app_context():
+        usuario = Usuario.query.filter_by(username='resetuser2').first()
+        usuario.email = 'reset2@empresa.com'
+        db.session.commit()
+
+    respuesta = client.post('/recuperar', data={'username': 'resetuser2'}, follow_redirects=True)
+    token = _token_de_respuesta(respuesta)
+    respuesta = client.post(f'/restablecer?token={token}', data={
+        'clave': 'nuevaclave123',
+        'confirmar': 'otraclave456',
+    }, follow_redirects=True)
+    assert respuesta.status_code == 200
+    assert b'no coinciden' in respuesta.data.lower()
+
+
+# ----------------------------------------------------------------------
+# CSRF
+# ----------------------------------------------------------------------
+def test_post_sin_csrf_rechazado(client):
+    client.get('/')
+    app.config['TESTING'] = False
+    try:
+        respuesta = client.post('/login', data={'usuario': 'x', 'clave': 'y'})
+        assert respuesta.status_code == 403
+        respuesta = client.post('/api/borrar-historial')
+        assert respuesta.status_code == 403
+    finally:
+        app.config['TESTING'] = True
+
+
+# ----------------------------------------------------------------------
+# ANTI-SSRF
+# ----------------------------------------------------------------------
+def test_url_privada_rechazada(logged_in_client):
+    response = logged_in_client.post('/api/ejecutar-escaneo',
+        json={'tipo': 'url', 'target': 'http://127.0.0.1:5000'},
+        content_type='application/json'
+    )
+    assert response.status_code == 400
+    data = response.get_json()
+    assert 'privadas' in data['error'] or 'locales' in data['error']
+
+
+def test_url_localhost_rechazada(logged_in_client):
+    response = logged_in_client.post('/api/ejecutar-escaneo',
+        json={'tipo': 'url', 'target': 'http://localhost'},
+        content_type='application/json'
+    )
+    assert response.status_code == 400
+
+
+# ----------------------------------------------------------------------
+# AGENTE LOCAL (token solo por entorno)
+# ----------------------------------------------------------------------
+def test_agente_sin_token_configurado(client):
+    app.config['AGENTE_TOKEN'] = ''
+    response = client.post('/api/agente/claim')
+    assert response.status_code == 503
+
+
+def test_agente_token_invalido(client):
+    app.config['AGENTE_TOKEN'] = 'secreto-de-prueba'
+    response = client.post('/api/agente/claim', headers={'X-Agente-Token': 'otro'})
+    assert response.status_code == 401
+
+
+def test_agente_token_valido(client):
+    from models import Usuario
+    app.config['AGENTE_TOKEN'] = 'secreto-de-prueba'
+    client.post('/registro', data={'usuario': 'agenteuser', 'clave': 'pass123'})
+    with app.app_context():
+        usuario = Usuario.query.filter_by(username='agenteuser').first()
+        from models import TrabajoEscaneo
+        trabajo = TrabajoEscaneo(usuario_id=usuario.id, tipo='dispositivos',
+                                 target='auto', estado='pendiente')
+        db.session.add(trabajo)
+        db.session.commit()
+
+    response = client.post('/api/agente/claim', headers={'X-Agente-Token': 'secreto-de-prueba'})
+    assert response.status_code == 200
+    assert response.get_json()['trabajo']['tipo'] == 'dispositivos'
+
+
+def test_agente_ping_reporta_token(client):
+    app.config['AGENTE_TOKEN'] = ''
+    respuesta = client.get('/api/agente/ping').get_json()
+    assert respuesta['token_configurado'] is False
+
+
+# ----------------------------------------------------------------------
+# MODULO ESCANEO_RED
+# ----------------------------------------------------------------------
+def test_validar_ip():
+    from escaneo_red import validar_ip
+    assert validar_ip('192.168.0.1')
+    assert not validar_ip('256.1.1.1')
+    assert not validar_ip('192.168.0')
+    assert not validar_ip('')
+
+
+def test_sanitize_target_url():
+    from escaneo_red import sanitize_target
+    assert sanitize_target('ejemplo.com', 'url') == 'https://ejemplo.com'
+    try:
+        sanitize_target('no es url', 'url')
+        assert False, 'Debia fallar'
+    except ValueError:
+        pass
+    try:
+        sanitize_target('10.0.0.1', 'puertos')
+        assert sanitize_target('10.0.0.1', 'puertos') == '10.0.0.1'
+    except ValueError:
+        assert False, 'IP valida no debia fallar'
+    try:
+        sanitize_target('999.1.1.1', 'puertos')
+        assert False, 'Debia fallar'
+    except ValueError:
+        pass
+
+
+def test_es_url_permitida():
+    from escaneo_red import es_url_permitida
+    ok, _ = es_url_permitida('http://127.0.0.1/x')
+    assert ok is False
+    ok, _ = es_url_permitida('http://localhost/x')
+    assert ok is False
+    ok, _ = es_url_permitida('http://192.168.0.5/x')
+    assert ok is False
+    ok, _ = es_url_permitida('http://10.0.0.3/x')
+    assert ok is False
+    ok, _ = es_url_permitida('http://169.254.169.254/latest/meta-data')
+    assert ok is False
+
+
+def test_escanear_puertos_detecta_puerto_abierto():
+    import socket as s
+    from escaneo_red import escanear_puertos
+    servidor = s.socket(s.AF_INET, s.SOCK_STREAM)
+    servidor.bind(('127.0.0.1', 0))
+    servidor.listen(1)
+    puerto = servidor.getsockname()[1]
+    try:
+        abiertos = escanear_puertos('127.0.0.1', [puerto, 65001], timeout=0.5)
+        assert puerto in abiertos
+        assert 65001 not in abiertos
+    finally:
+        servidor.close()
+
+
+def test_ip_local():
+    from escaneo_red import ip_local
+    ip = ip_local()
+    assert ip.count('.') == 3
+
+
+def test_prefix_red():
+    from escaneo_red import prefijo_red_local
+    prefijo, propia = prefijo_red_local()
+    assert prefijo.count('.') == 2
+    assert propia.count('.') == 3

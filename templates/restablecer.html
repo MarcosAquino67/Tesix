@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>SecureScan - Recuperar contraseña</title>
+    <title>SecureScan - Restablecer contraseña</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,10 +23,10 @@
 
         <div class="text-center space-y-3">
             <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#6c47ff]/20 border border-[#6c47ff]/30 text-[#6c47ff]">
-                <i data-lucide="key" class="w-7 h-7"></i>
+                <i data-lucide="lock-keyhole" class="w-7 h-7"></i>
             </div>
-            <h1 class="text-xl font-bold text-white">Recuperar contraseña</h1>
-            <p class="text-xs text-gray-400">Ingresa tu usuario y te enviaremos un enlace por correo para crear una contraseña nueva. El enlace vence en 30 minutos.</p>
+            <h1 class="text-xl font-bold text-white">Nueva contraseña</h1>
+            <p class="text-xs text-gray-400">Escribí tu nueva contraseña. Mínimo 6 caracteres.</p>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -42,15 +42,21 @@
             {% endif %}
         {% endwith %}
 
-        <form action="/recuperar" method="POST" class="space-y-4">
+        <form action="/restablecer" method="POST" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="token" value="{{ token }}">
             <div>
-                <label class="block text-xs font-medium text-gray-300 mb-1.5">Usuario</label>
-                <input type="text" name="username" required
+                <label class="block text-xs font-medium text-gray-300 mb-1.5">Nueva contraseña</label>
+                <input type="password" name="clave" required minlength="6"
+                    class="w-full bg-[#0d0d12] border border-[#232333] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#6c47ff]">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-300 mb-1.5">Repetir contraseña</label>
+                <input type="password" name="confirmar" required minlength="6"
                     class="w-full bg-[#0d0d12] border border-[#232333] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#6c47ff]">
             </div>
             <button type="submit" class="w-full bg-[#6c47ff] hover:bg-[#5b3adb] text-white font-semibold py-3 rounded-xl text-sm transition-all">
-                Enviar enlace de recuperación
+                Guardar nueva contraseña
             </button>
         </form>
 

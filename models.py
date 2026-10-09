@@ -21,6 +21,11 @@ class Usuario(db.Model):
     tfa_expira_en = db.Column(db.DateTime, nullable=True)
     tfa_intentos = db.Column(db.Integer, default=0, nullable=False)
 
+    # Recuperacion de contrasena por enlace de un solo uso
+    reset_token_hash = db.Column(db.String(255), nullable=True)
+    reset_expira_en = db.Column(db.DateTime, nullable=True)
+    reset_intentos = db.Column(db.Integer, default=0, nullable=False)
+
     escaneos = db.relationship('Escaneo', backref='usuario', lazy=True,
                                cascade='all, delete-orphan')
 
@@ -41,8 +46,9 @@ class Escaneo(db.Model):
     total_dispositivos = db.Column(db.Integer)
     fecha = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
-    resultados = db.relationship('ResultadoEscaneo', backref='escaneo',
-                                 lazy=True, cascade='all, delete-orphan')
+    resultados = db.relationship('ResultadoEscaneo', backref='escaneo', lazy=True,
+                                 cascade='all, delete-orphan',
+                                 order_by='ResultadoEscaneo.id')
 
     def to_dict(self):
         return {
@@ -93,8 +99,9 @@ class Vulnerabilidad(db.Model):
     severity = db.Column(db.String(20))
     risk = db.Column(db.Text)
 
-    # Vínculo bidireccional con Escaneo (opcional: backref)
-    escaneo = db.relationship("Escaneo", backref="vulnerabilidades", lazy=True)
+    # Vínculo bidireccional con Escaneo (borrar escaneo borra sus vulnerabilidades)
+    escaneo = db.relationship("Escaneo", backref="vulnerabilidades", lazy=True,
+                              cascade='all, delete-orphan', single_parent=True)
 
     def to_dict(self):
         return {
@@ -125,6 +132,7 @@ class TrabajoEscaneo(db.Model):
                        index=True)  # pendiente | procesando | completado | error
     escaneo_id = db.Column(db.Integer, db.ForeignKey('escaneos.id'))
     mensaje_error = db.Column(db.Text)
+    progreso = db.Column(db.String(255))
     creado_en = db.Column(db.DateTime, default=datetime.utcnow)
     completado_en = db.Column(db.DateTime)
 

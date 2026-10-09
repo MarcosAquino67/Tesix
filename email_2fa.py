@@ -51,26 +51,25 @@ def generar_codigo():
     return f'{secrets.randbelow(900000) + 100000}'
 
 
-def enviar_codigo_email(destino, codigo, minutos,
-                        host='', port=587, user='', password='', from_addr=''):
-    """Envia el codigo por email. Devuelve (ok, error).
+def smtp_configurado(host='', user='', password=''):
+    return bool(host and user and password)
 
-    Sin SMTP configurado: registra el codigo en el log
-    (modo desarrollo) y devuelve ok=True.
+
+def enviar_email(destino, asunto, cuerpo,
+                 host='', port=587, user='', password='', from_addr=''):
+    """Envia un email generico. Devuelve (ok, error).
+
+    Sin SMTP configurado: registra el mensaje en el log (modo desarrollo).
     """
-    if not (host and user and password):
-        log.info(f'[2FA-DEV] Codigo para {destino}: {codigo}')
+    if not smtp_configurado(host, user, password):
+        log.info('[EMAIL-DEV] Para: %s | Asunto: %s | %s', destino, asunto, cuerpo)
         return True, None
     try:
         msg = EmailMessage()
-        msg['Subject'] = 'Tu codigo de verificacion SecureScan'
+        msg['Subject'] = asunto
         msg['From'] = from_addr or user
         msg['To'] = destino
-        msg.set_content(
-            f'Hola,\n\nTu codigo de verificacion SecureScan es: {codigo}\n\n'
-            f'Vence en {minutos} minutos. No lo compartas con nadie.\n\n'
-            f'Si no solicitaste este codigo, ignora este mensaje.'
-        )
+        msg.set_content(cuerpo)
         with smtplib.SMTP(host, port, timeout=20) as smtp:
             smtp.starttls()
             smtp.login(user, password)
@@ -79,6 +78,35 @@ def enviar_codigo_email(destino, codigo, minutos,
     except Exception as exc:  # noqa: BLE001 - fallos de red/auth SMTP
         log.error(f'Error enviando email a {destino}: {exc}')
         return False, 'No se pudo enviar el correo. Revisa tu email e intenta de nuevo.'
+
+
+def enviar_enlace_recuperacion(destino, enlace, minutos,
+                               host='', port=587, user='', password='', from_addr=''):
+    """Envia el enlace de restablecimiento de contrasena (un solo uso)."""
+    cuerpo = (
+        'Hola,\n\n'
+        'Recibimos una solicitud para restablecer la contrasena de tu cuenta SecureScan.\n\n'
+        f'Enlace (valido por {minutos} minutos, de un solo uso):\n{enlace}\n\n'
+        'Si no solicitaste este cambio, ignora este mensaje: tu contrasena seguira igual.\n'
+    )
+    return enviar_email(
+        destino, 'Restablecer contrasena - SecureScan', cuerpo,
+        host, port, user, password, from_addr,
+    )
+
+
+def enviar_codigo_email(destino, codigo, minutos,
+                        host='', port=587, user='', password='', from_addr=''):
+    """Envia el codigo 2FA por email. Devuelve (ok, error)."""
+    cuerpo = (
+        f'Hola,\n\nTu codigo de verificacion SecureScan es: {codigo}\n\n'
+        f'Vence en {minutos} minutos. No lo compartas con nadie.\n\n'
+        'Si no solicitaste este codigo, ignora este mensaje.'
+    )
+    return enviar_email(
+        destino, 'Tu codigo de verificacion SecureScan', cuerpo,
+        host, port, user, password, from_addr,
+    )
 
 
 def iniciar_desafio(usuario, minutos=CODIGO_MINUTOS_DEFAULT,

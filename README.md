@@ -122,14 +122,41 @@ docker-compose exec app pytest
 
 | Variable | Descripción | Por defecto |
 |----------|-------------|-------------|
-| `SECRET_KEY` | Clave secreta Flask (¡cambia en prod!) | `cambia_esto...` |
+| `SECRET_KEY` | Clave secreta Flask (obligatoria en prod) | aleatoria por proceso |
 | `DB_USER` / `DB_PASS` | Usuario/contraseña MySQL app | `scanner_user` / `admin123` |
 | `DB_HOST` | Host MySQL (en Docker = nombre servicio `db`) | `db` |
 | `DB_NAME` | Nombre base de datos | `scanner_db` |
 | `MYSQL_ROOT_PASSWORD` | Root password MySQL | `rootpass123` |
 | `FLASK_ENV` | `production` \| `development` | `production` |
-| `AGENTE_HABILITADO` | Habilitar cola agente local (`1`/`0`) | `0` |
-| `AGENTE_TOKEN` | Token compartido agente-servidor | (generado) |
+| `SESSION_COOKIE_SECURE` | Cookie de sesión solo por HTTPS (`1`/`0`) | `0` |
+| `FORCE_HTTPS` | Redirigir HTTP→HTTPS con Talisman (`1`/`0`) | `0` |
+| `ESCANEO_EN_SEGUNDO_PLANO` | Escaneos en hilo aparte con progreso (`1`/`0`) | `1` |
+| `PERMITIR_URLS_PRIVADAS` | Permitir analizar URLs privadas/locales (`1`/`0`) | `0` |
+| `AGENTE_HABILITADO` | Habilitar cola agente local (`1`/`0`) | auto (Vercel) |
+| `AGENTE_TOKEN` | Token compartido agente-servidor (**obligatorio** si el agente está activo) | vacío |
+
+---
+
+## 🛡️ Seguridad implementada
+
+- **CSRF**: todos los POST validan el token de sesión (campo oculto en formularios, cabecera `X-CSRFToken` en el JS).
+- **Recuperación de contraseña por email**: enlace de un solo uso con vencimiento (30 min) y límite de intentos. Nunca se muestra una contraseña en pantalla.
+- **Anti-SSRF**: el análisis de URLs rechaza destinos privados, loopback, link-local y reservados (falta que defina `PERMITIR_URLS_PRIVADAS=1`).
+- **Rate limiting**: login 20/min, escaneos 10/min, recuperación 5/min, reenvío 2FA 3/min.
+- **Contraseñas**: hash scrypt (Werkzeug). Códigos 2FA hasheados, de un solo uso, con expiración e intentos máximos.
+- **Agente local**: autenticado por token leído **solo** de la variable de entorno (sin valores por defecto en el código).
+- **Sesiones**: `HttpOnly`, `SameSite=Lax`, `Secure` configurable para HTTPS.
+
+---
+
+## ⚡ Rendimiento
+
+- Escaneo de puertos en paralelo (`ThreadPoolExecutor`), timeouts de 0.4s por puerto.
+- Descubrimiento de dispositivos: ping a la /24 con 128 workers en paralelo, análisis por host en paralelo (puertos + DNS inverso con timeout de 1s).
+- Consulta de fabricantes MAC con caché en memoria (no repite llamadas a la API).
+- Análisis web con timeout de 5s + verificación de vencimiento del certificado SSL.
+- Los escaneos corren en segundo plano: la API responde al instante con el id del trabajo y el frontend muestra el avance consultando `/api/trabajo/<id>`.
+- Cada resultado muestra su duración (útil como métrica: "13 puertos en 0.4s", "N dispositivos en Xs").
 
 ---
 
@@ -195,19 +222,77 @@ Cada usuario puede activarla desde **Configuración → Seguridad**:
 
 ### Migrar base de datos existente
 
-Si ya tienes datos en MySQL, agrega las columnas 2FA:
+Si actualizás una instalación anterior, la app agrega las columnas nuevas automáticamente al arrancar (`ALTER TABLE usuarios ADD COLUMN ...`). Si preferís hacerlo manual:
 
 ```sql
 ALTER TABLE usuarios
-  ADD COLUMN email VARCHAR(120) NULL,
-  ADD COLUMN telefono VARCHAR(20) NULL,
-  ADD COLUMN tfa_habilitado TINYINT(1) NOT NULL DEFAULT 0,
-  ADD COLUMN tfa_codigo_hash VARCHAR(255) NULL,
-  ADD COLUMN tfa_expira_en DATETIME NULL,
-  ADD COLUMN tfa_intentos INT NOT NULL DEFAULT 0;
+  ADD COLUMN reset_token_hash VARCHAR(255) NULL,
+  ADD COLUMN reset_expira_en DATETIME NULL,
+  ADD COLUMN reset_intentos INT NOT NULL DEFAULT 0;
 ```
 
-(Instalaciones nuevas con Docker ya incluyen estas columnas vía `init.sql`. SQLite local se crea solo con `db.create_all()`.)
+También se necesita la tabla de trabajos (la crea `db.create_all()` al iniciar):
+
+```sql
+CREATE TABLE IF NOT EXISTS trabajos_escaneo (
+    id INT NOT NULL AUTO_INCREMENT,
+    usuario_id INT NOT NULL,
+    tipo VARCHAR(30) NOT NULL DEFAULT 'dispositivos',
+    target VARCHAR(255) NULL DEFAULT NULL,
+    estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+    escaneo_id INT NULL DEFAULT NULL,
+    mensaje_error TEXT NULL DEFAULT NULL,
+    progreso VARCHAR(255) NULL DEFAULT NULL,
+    creado_en DATETIME NULL DEFAULT NULL,
+    completado_en DATETIME NULL DEFAULT NULL,
+    PRIMARY KEY (id)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+```
+
+---
+
+## 🔑 Recuperación de contraseña
+
+Ya no se generan contraseñas temporales en pantalla. El flujo actual:
+
+1. El usuario ingresa su usuario en **/recuperar**.
+2. Si el usuario existe **y tiene correo configurado**, se envía un enlace de un solo uso (vence en 30 minutos).
+3. En **/restablecer** define la contraseña nueva y queda logueado.
+4. Sin correo configurado, el sistema muestra el mismo mensaje genérico (no revela si el usuario existe) y el intento queda registrado en el log.
+
+Para que funcione hay que configurar SMTP (ver sección de variables). Sin SMTP, en desarrollo el enlace se escribe en `logs/scanner.log`.
+
+---
+
+## 🌐 Despliegue en producción (Vercel / Docker)
+
+1. **Generá SECRET_KEY y AGENTE_TOKEN fuertes:**
+   ```bash
+   python -c "import secrets; print(secrets.token_hex(32))"   # SECRET_KEY
+   python -c "import secrets; print(secrets.token_hex(24))"   # AGENTE_TOKEN
+   ```
+
+2. **Variables críticas en prod** (Vercel → Project → Settings → Environment Variables):
+   ```env
+   FLASK_ENV=production
+   SECRET_KEY=clave_muy_larga_y_aleatoria
+   DATABASE_URL=mysql://usuario:password@host:3306/scanner_db
+   SESSION_COOKIE_SECURE=True
+   AGENTE_HABILITADO=1          # solo si usás el agente local
+   AGENTE_TOKEN=el_mismo_token_del_agente
+   SMTP_HOST=smtp.gmail.com
+   SMTP_USER=...
+   SMTP_PASS=...                # contraseña de aplicación de Google
+   ```
+
+3. **Agente local** (PC dentro de la red a escanear):
+   ```bash
+   export AGENTE_URL=https://tu-app.vercel.app
+   export AGENTE_TOKEN=el_mismo_token_del_servidor
+   python agente_local.py
+   ```
+
+4. **Reverse proxy** (Nginx/Traefik) con HTTPS delante de la app. Con HTTPS activo poné `SESSION_COOKIE_SECURE=True` y `FORCE_HTTPS=1`.
 
 ---
 

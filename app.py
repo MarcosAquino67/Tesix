@@ -1,20 +1,20 @@
-import socket
+﻿import hashlib
+import hmac
 import os
-import platform
-import subprocess
 import re
 import secrets
+import socket
+import threading
+import time
 import logging
-import urllib.request
-import ssl
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-
-load_dotenv()
-from concurrent.futures import ThreadPoolExecutor
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, render_template, request, redirect, flash, session, jsonify
+load_dotenv()
+from flask import (
+    Flask, render_template, request, redirect, flash, session, jsonify, abort, url_for,
+)
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -24,9 +24,22 @@ from config import Config
 from email_2fa import (
     normalizar_email,
     enmascarar_email,
+    enviar_email,
+    enviar_enlace_recuperacion,
     iniciar_desafio,
     verificar_codigo,
     limpiar_desafio,
+)
+from escaneo_red import (
+    PUERTOS_POR_DEFECTO,
+    analizar_url,
+    descubrir_dispositivos,
+    escanear_puertos,
+    es_url_permitida,
+    ip_local,
+    sanitize_target,
+    validar_ip,
+    validar_url,
 )
 
 
@@ -41,9 +54,10 @@ def _smtp_cfg():
     }
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Token compartido entre el servidor y agente_local.py.
-# Puede sobreescribirse con la variable de entorno AGENTE_TOKEN en produccion.
-TOKEN_AGENTE_POR_DEFECTO = 'agente_7b01a29aa5edf699bcadc27f865f5596'
+# El token compartido con el agente local se configura SOLO por variable de
+# entorno AGENTE_TOKEN (admite varios separados por coma). No hay valor por
+# defecto en el codigo: si no esta configurado, los endpoints del agente
+# responden 503.
 
 app = Flask(
     __name__,
@@ -54,13 +68,11 @@ app.config.from_object(Config)
 
 db.init_app(app)
 
-import secrets as _secrets
-
 @app.context_processor
 def inject_csrf_token():
     def csrf_token():
         if '_csrf_token' not in session:
-            session['_csrf_token'] = _secrets.token_hex(32)
+            session['_csrf_token'] = secrets.token_hex(32)
         return session['_csrf_token']
     return dict(csrf_token=csrf_token)
 
@@ -90,62 +102,58 @@ if not app.debug and not app.testing:
     app.logger.info('Scanner iniciado')
 
 # ----------------------------------------------------------------------
-# TALISMAN (HTTPS enforcement) - solo en produccion
+# TALISMAN (HTTPS enforcement) - activable con FORCE_HTTPS=1 en produccion
 # ----------------------------------------------------------------------
 try:
     from flask_talisman import Talisman
     talisman = Talisman(
         app,
-        force_https=False,
+        force_https=os.environ.get('FORCE_HTTPS', '0') == '1',
         content_security_policy=None,
-        session_cookie_secure=False,
+        session_cookie_secure=app.config.get('SESSION_COOKIE_SECURE', False),
     )
 except ImportError:
     pass
 
 # ----------------------------------------------------------------------
-# SANITIZACION DE INPUTS
+# CSRF: se valida el token de sesion en todos los POST/PUT/PATCH/DELETE.
+# Los formularios ya lo incluyen (campo csrf_token) y el JS lo manda como
+# cabecera X-CSRFToken. Los endpoints del agente se validan con su token.
 # ----------------------------------------------------------------------
-IP_REGEX = re.compile(
-    r'^((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)$'
-)
-URL_REGEX = re.compile(
-    r'^https?://[a-zA-Z0-9\-\.]+(\.[a-zA-Z]{2,})(:\d{1,5})?(/[^\s]*)?$'
-)
-
 VALID_SCAN_TYPES = ('puertos', 'url', 'dispositivos')
 
-
-def validar_ip(ip):
-    return bool(IP_REGEX.match(ip))
+RUTAS_EXENTAS_CSRF = {'/api/agente/claim', '/api/agente/resultados'}
 
 
-def validar_url(url):
-    if not URL_REGEX.match(url):
-        return False
-    parsed = urllib.request.url2pathname(url)
-    if any(c in parsed for c in [';', '|', '&', '$', '`', '(', ')']):
-        return False
-    return True
+def _token_csrf_recibido():
+    token = (request.form.get('csrf_token')
+             or request.form.get('_csrf_token')
+             or request.headers.get('X-CSRFToken')
+             or request.headers.get('X-CSRF-Token'))
+    if not token and request.is_json:
+        datos = request.get_json(silent=True) or {}
+        token = datos.get('csrf_token')
+    return token or ''
 
 
-def sanitize_target(target, tipo):
-    target = target.strip()
-    if tipo == 'puertos':
-        if not target or target == '':
-            return target
-        if not validar_ip(target):
-            raise ValueError(f'IP invalida: {target}')
-        return target
-    elif tipo == 'url':
-        if not target.startswith(('http://', 'https://')):
-            target = 'https://' + target
-        if not validar_url(target):
-            raise ValueError(f'URL invalida: {target}')
-        return target
-    elif tipo == 'dispositivos':
-        return target
-    raise ValueError(f'Tipo de escaneo invalido: {tipo}')
+@app.before_request
+def verificar_csrf():
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        return None
+    if request.path in RUTAS_EXENTAS_CSRF:
+        return None
+    if app.config.get('TESTING'):
+        return None
+
+    token_sesion = session.get('_csrf_token', '')
+    token_recibido = _token_csrf_recibido()
+    if not token_sesion or not token_recibido or not hmac.compare_digest(
+        str(token_sesion), str(token_recibido)
+    ):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Token CSRF invalido o ausente. Recarga la pagina.'}), 403
+        abort(403)
+    return None
 
 
 # ----------------------------------------------------------------------
@@ -283,6 +291,14 @@ URL_VULNERABILITIES = {
         'descripcion': 'Sin esta cabecera, el navegador podria interpretar archivos MIME de forma incorrecta, facilitando ataques de sniffing.',
         'recomendacion': 'Agrega X-Content-Type-Options: nosniff para forzar la deteccion de tipo MIME.'
     },
+    'cert_por_vencer': {
+        'nombre': 'Certificado SSL proximo a vencer',
+        'cve': 'CVE-General',
+        'tipo': 'Web',
+        'severity': 'High',
+        'descripcion': 'El certificado SSL del sitio vence en menos de 15 dias o ya vencio. Un certificado vencido habilita ataques de suplantacion y genera alertas en los navegadores.',
+        'recomendacion': 'Renueva el certificado SSL (Let\'s Encrypt permite renovacion automatica con certbot).'
+    },
 }
 
 
@@ -337,155 +353,15 @@ def analizar_vulnerabilidades(tipo_escaneo, resultados, escaneo_id):
                     descripcion=info['descripcion'], tipo=info['tipo'],
                     severity=info['severity'], risk=info['recomendacion']
                 ))
+            elif r['item'] == 'Certificado SSL' and r['estado'] == 'ALERTA':
+                info = URL_VULNERABILITIES['cert_por_vencer']
+                vulns.append(Vulnerabilidad(
+                    escaneo_id=escaneo_id, nombre=info['nombre'], cve=info['cve'],
+                    descripcion=f"{info['descripcion']} ({r['explicacion']})",
+                    tipo=info['tipo'], severity=info['severity'], risk=info['recomendacion']
+                ))
 
     return vulns
-
-
-# ----------------------------------------------------------------------
-# MAC VENDORS
-# ----------------------------------------------------------------------
-MAC_VENDORS = {
-    '00:26:08': 'Apple', '3c:15:c2': 'Apple', 'a4:5e:60': 'Apple', 'f8:ff:c2': 'Apple',
-    'ec:1f:72': 'Samsung', '84:25:db': 'Samsung', '28:39:26': 'Samsung', 'cc:07:ab': 'Samsung',
-    '34:80:b3': 'Xiaomi', '64:09:80': 'Xiaomi', 'd8:18:d6': 'Xiaomi',
-    '84:c7:ea': 'Motorola', '00:0c:e7': 'Motorola',
-    '00:11:32': 'Synology / Router', '50:c7:bf': 'TP-Link', 'e8:48:b8': 'TP-Link',
-    'b8:27:eb': 'Raspberry Pi', 'dc:a6:32': 'Raspberry Pi',
-    '00:50:56': 'VMware', '08:00:27': 'VirtualBox'
-}
-
-CACHE_VENDORS = {}
-
-
-def obtener_tabla_arp_completa():
-    tabla = {}
-    try:
-        salida = subprocess.check_output(
-            ['arp', '-a'], stderr=subprocess.STDOUT, timeout=3
-        ).decode('latin-1')
-        for linea in salida.splitlines():
-            ip_match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', linea)
-            mac_match = re.search(
-                r'([0-9A-Fa-f]{2}[-:][0-9A-Fa-f]{2}[-:][0-9A-Fa-f]{2}[-:][0-9A-Fa-f]{2}[-:][0-9A-Fa-f]{2}[-:][0-9A-Fa-f]{2})',
-                linea
-            )
-            if ip_match and mac_match:
-                ip = ip_match.group(1)
-                mac = mac_match.group(1).lower().replace('-', ':')
-                tabla[ip] = mac.upper()
-    except Exception:
-        pass
-    return tabla
-
-
-def es_mac_aleatoria(mac):
-    segundo_digito = mac.split(':')[0][1].upper()
-    return segundo_digito in ('2', '6', 'A', 'E')
-
-
-def consultar_marca_online(mac):
-    if mac in CACHE_VENDORS:
-        return CACHE_VENDORS[mac]
-    try:
-        req = urllib.request.Request(f"https://api.macvendors.com/{mac}")
-        with urllib.request.urlopen(req, timeout=2) as resp:
-            marca = resp.read().decode('utf-8').strip()
-            CACHE_VENDORS[mac] = marca
-            return marca
-    except Exception:
-        CACHE_VENDORS[mac] = None
-        return None
-
-
-def identificar_marca(mac):
-    prefix = mac[:8].lower()
-    if prefix in MAC_VENDORS:
-        return MAC_VENDORS[prefix]
-    if es_mac_aleatoria(mac):
-        return "MAC aleatoria (privacidad) - posible iPhone/Android reciente"
-    marca_online = consultar_marca_online(mac)
-    return marca_online if marca_online else "Dispositivo Conectado"
-
-
-def hacer_ping(ip_test):
-    if not validar_ip(ip_test):
-        return None
-    es_windows = platform.system().lower() == 'windows'
-    try:
-        param_cantidad = '-n' if es_windows else '-c'
-        destino_nulo = 'NUL' if es_windows else '/dev/null'
-        tiempo_espera = '-w' if es_windows else '-W'
-        tiempo_valor = '1000' if es_windows else '2'
-        comando = [
-            'ping', param_cantidad, '1', tiempo_espera, tiempo_valor, ip_test
-        ]
-        resultado = subprocess.run(
-            comando,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=5
-        )
-        return ip_test if resultado.returncode == 0 else None
-    except (subprocess.TimeoutExpired, OSError):
-        return None
-
-
-def escanear_puertos_rapido(ip, puertos=None):
-    if puertos is None:
-        puertos = [80, 443, 8080, 5000, 22, 3389, 53, 554, 1900, 50000]
-    abiertos = []
-    for puerto in puertos:
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.3)
-            if sock.connect_ex((ip, puerto)) == 0:
-                abiertos.append(puerto)
-            sock.close()
-        except Exception:
-            pass
-    return abiertos
-
-
-def inferir_tipo_dispositivo(ip, mac, puertos_abiertos, hostname):
-    hostname_lower = hostname.lower() if hostname else ''
-    ip_last = int(ip.split('.')[-1])
-
-    if ip_last == 1 or 'router' in hostname_lower or 'gateway' in hostname_lower:
-        return 'Router / Modem Wi-Fi'
-
-    if not puertos_abiertos:
-        if mac and es_mac_aleatoria(mac):
-            return 'Smartphone (iPhone/Android)'
-        return 'Dispositivo IoT / Smart'
-
-    servicios = set()
-    for p in puertos_abiertos:
-        if p == 22: servicios.add('ssh')
-        elif p == 80 or p == 8080: servicios.add('web')
-        elif p == 443: servicios.add('https')
-        elif p == 3389: servicios.add('windows')
-        elif p == 5000: servicios.add('flask')
-        elif p == 53: servicios.add('dns')
-        elif p == 554: servicios.add('camera')
-        elif p == 1900: servicios.add('upnp')
-
-    if 'windows' in servicios:
-        return 'PC Windows'
-    if 'ssh' in servicios and 'web' not in servicios:
-        return 'Servidor / Linux'
-    if 'camera' in servicios or 'upnp' in servicios:
-        return 'Camara IP / Smart TV'
-    if 'flask' in servicios or ('web' in servicios and 'https' not in servicios):
-        return 'Servidor / Raspberry Pi'
-    if 'web' in servicios and 'https' in servicios:
-        return 'PC / Laptop'
-
-    if mac:
-        marca = identificar_marca(mac)
-        if marca and marca != 'Dispositivo Conectado':
-            return f'{marca} (dispositivo)'
-
-    return 'Dispositivo de red'
 
 
 # ----------------------------------------------------------------------
@@ -770,176 +646,185 @@ def ejecutar_escaneo():
         if tipo_escaneo not in VALID_SCAN_TYPES:
             return jsonify({'error': 'Tipo de escaneo invalido'}), 400
 
-        # Escaneos de red local: se encolan para el agente si esta habilitado
-        if tipo_escaneo == 'dispositivos' and _cola_agente_activa():
-            trabajo = TrabajoEscaneo(
-                usuario_id=session['usuario_id'],
-                tipo='dispositivos',
-                target=target or 'auto',
-                estado='pendiente'
-            )
-            db.session.add(trabajo)
-            db.session.commit()
-            return jsonify({
-                'async': True,
-                'trabajo_id': trabajo.id,
-                'mensaje': 'Escaneo encolado. Esperando al agente de red...'
-            })
-
         try:
             target = sanitize_target(target, tipo_escaneo)
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
 
-        resultados = []
-        titulo = ""
-        subtitulo = ""
-        target_registro = target
+        # Validaciones de seguridad antes de encolar (respuesta inmediata)
+        if tipo_escaneo == 'url' and not app.config.get('PERMITIR_URLS_PRIVADAS'):
+            permitida, mensaje = es_url_permitida(target)
+            if not permitida:
+                return jsonify({'error': mensaje}), 400
 
-        if tipo_escaneo == 'puertos':
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80))
-                ip_target = s.getsockname()[0]
-                s.close()
-                hostname = socket.gethostname()
-            except Exception:
-                ip_target = "127.0.0.1"
-                hostname = "localhost"
+        if tipo_escaneo == 'dispositivos' and target and target != 'auto':
+            if not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}$', target):
+                return jsonify({'error': 'Prefijo de red invalido. Usa el formato 192.168.0'}), 400
 
-            puertos = [21, 22, 23, 25, 53, 80, 110, 143, 443, 3306, 3389, 5000, 8080]
-            for puerto in puertos:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(0.4)
-                res = sock.connect_ex((ip_target, puerto))
-                estado = "ABIERTO" if res == 0 else "CERRADO"
-                if puerto == 5000 and res == 0:
-                    explicacion = "Sistema Flask corriendo"
-                elif res == 0:
-                    explicacion = "Servicio activo"
-                else:
-                    explicacion = "Seguro (sin escucha)"
-                resultados.append({'item': f"Puerto {puerto}", 'estado': estado, 'explicacion': explicacion})
-                sock.close()
-
-            titulo = 'Analisis de Puertos de Red'
-            subtitulo = f"Host: {hostname} ({ip_target})"
-            target_registro = ip_target
-            app.logger.info(f'Escaneo de puertos ejecutado en {ip_target}')
-
-        elif tipo_escaneo == 'url':
-            target_registro = target
-            try:
-                req = urllib.request.Request(target, headers={'User-Agent': 'Mozilla/5.0'})
-                contexto = ssl.create_default_context()
-                with urllib.request.urlopen(req, timeout=3, context=contexto) as response:
-                    status = response.getcode()
-                    resultados.append({
-                        'item': 'Estado HTTP',
-                        'estado': 'OK' if status == 200 else 'ALERTA',
-                        'explicacion': f"Codigo de respuesta {status}"
-                    })
-                    resultados.append({
-                        'item': 'HTTPS / SSL',
-                        'estado': 'SEGURO' if target.startswith('https') else 'RIESGO',
-                        'explicacion': 'Trafico cifrado activado' if target.startswith('https') else 'Sitio no usa HTTPS'
-                    })
-
-                    headers = dict(response.info())
-                    h_seguridad = ['Strict-Transport-Security', 'X-Frame-Options', 'X-Content-Type-Options']
-                    for h in h_seguridad:
-                        esta = h in headers
-                        resultados.append({
-                            'item': f"Cabecera {h}",
-                            'estado': 'OK' if esta else 'AUSENTE',
-                            'explicacion': 'Cabecera de proteccion detectada' if esta else 'Se recomienda agregar esta cabecera'
-                        })
-            except Exception as e:
-                resultados.append({
-                    'item': 'Conexion Web',
-                    'estado': 'FALLO',
-                    'explicacion': f"No se pudo acceder a la URL ({str(e)})"
-                })
-
-            titulo = 'Analisis Web y SSL'
-            subtitulo = f"Objetivo: {target}"
-            app.logger.info(f'Escaneo URL ejecutado: {target}')
-
-        elif tipo_escaneo == 'dispositivos':
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80))
-                ip_base = ".".join(s.getsockname()[0].split('.')[:-1])
-                ip_propia = s.getsockname()[0]
-                s.close()
-            except Exception:
-                ip_base = "192.168.0"
-                ip_propia = "127.0.0.1"
-
-            target_registro = f"{ip_base}.0/24"
-
-            ips_a_probar = [f"{ip_base}.{i}" for i in range(1, 255)]
-            with ThreadPoolExecutor(max_workers=60) as executor:
-                resultados_ping = list(executor.map(hacer_ping, ips_a_probar))
-            ips_activas = [ip for ip in resultados_ping if ip]
-
-            tabla_arp = obtener_tabla_arp_completa()
-
-            for ip_arp in tabla_arp:
-                if ip_arp not in ips_activas and ip_arp.startswith(ip_base):
-                    ips_activas.append(ip_arp)
-
-            macs_vistas = set()
-            for ip_test in sorted(ips_activas, key=lambda ip: int(ip.split('.')[-1])):
-                mac = tabla_arp.get(ip_test, "Desconocida")
-
-                if mac != "Desconocida" and mac in macs_vistas:
-                    continue
-                macs_vistas.add(mac)
-
-                marca = identificar_marca(mac) if mac != "Desconocida" else "Dispositivo Conectado"
-
-                puertos_abiertos = escanear_puertos_rapido(ip_test)
-
-                try:
-                    hostname = socket.gethostbyaddr(ip_test)[0]
-                except Exception:
-                    hostname = None
-
-                if ip_test == ip_propia:
-                    nombre_dispositivo = f"Este Equipo ({socket.gethostname()})"
-                else:
-                    nombre_dispositivo = inferir_tipo_dispositivo(ip_test, mac, puertos_abiertos, hostname)
-
-                puertos_str = ', '.join(str(p) for p in puertos_abiertos) if puertos_abiertos else 'Ninguno detectado'
-                detalle = f"MAC: {mac} | Marca: {marca} | Puertos: {puertos_str}"
-                if hostname and ip_test != ip_propia:
-                    detalle += f" | Host: {hostname}"
-
-                resultados.append({
-                    'item': f"IP {ip_test} - {nombre_dispositivo}",
-                    'estado': 'ACTIVO',
-                    'explicacion': detalle
-                })
-
-            titulo = 'Dispositivos en Red Local'
-            subtitulo = f"Rango analizado: {ip_base}.1 - {ip_base}.254 ({len(resultados)} dispositivos activos)"
-            app.logger.info(f'Escaneo de dispositivos: {len(resultados)} encontrados')
-
-        escaneo_id = guardar_escaneo_completo(
-            session['usuario_id'], tipo_escaneo, target_registro, titulo, subtitulo, resultados
+        # Escaneos de red local: se encolan para el agente cuando esta activo
+        envia_al_agente = tipo_escaneo == 'dispositivos' and _cola_agente_activa()
+        en_segundo_plano = (
+            app.config.get('ESCANEO_EN_SEGUNDO_PLANO')
+            and not app.config.get('TESTING')
         )
-        app.logger.info(f'Escaneo guardado id={escaneo_id} tipo={tipo_escaneo}')
+
+        if not envia_al_agente and not en_segundo_plano:
+            # Modo directo (tests o ESCANEO_EN_SEGUNDO_PLANO=0)
+            try:
+                titulo, subtitulo, resultados, target_registro = _ejecutar_escaneo(
+                    session['usuario_id'], tipo_escaneo, target
+                )
+            except ValueError as ve:
+                return jsonify({'error': str(ve)}), 400
+
+            escaneo_id = guardar_escaneo_completo(
+                session['usuario_id'], tipo_escaneo, target_registro,
+                titulo, subtitulo, resultados
+            )
+            app.logger.info(f'Escaneo guardado id={escaneo_id} tipo={tipo_escaneo}')
+            return jsonify({
+                'titulo': titulo,
+                'subtitulo': subtitulo,
+                'resultados': resultados,
+            })
+
+        trabajo = TrabajoEscaneo(
+            usuario_id=session['usuario_id'],
+            tipo=tipo_escaneo,
+            target=target or 'auto',
+            estado='pendiente',
+            progreso='En cola',
+        )
+        db.session.add(trabajo)
+        db.session.commit()
+
+        if not envia_al_agente:
+            hilo = threading.Thread(target=_procesar_trabajo, args=(trabajo.id,), daemon=True)
+            hilo.start()
 
         return jsonify({
-            'titulo': titulo,
-            'subtitulo': subtitulo,
-            'resultados': resultados
+            'async': True,
+            'trabajo_id': trabajo.id,
+            'mensaje': ('Escaneo encolado. Esperando al agente de red...'
+                        if envia_al_agente else 'Escaneo iniciado. Consultando progreso...'),
         })
 
+    except ValueError as ve:
+        return jsonify({'error': str(ve)}), 400
     except Exception as e:
         app.logger.error(f'Error en escaneo: {e}', exc_info=True)
         return jsonify({'error': f'Error interno: {str(e)}'}), 500
+
+
+def _ejecutar_escaneo(usuario_id, tipo_escaneo, target, progreso=None):
+    """Ejecuta el escaneo segun el tipo. Devuelve (titulo, subtitulo, resultados, target_registro)."""
+    resultados = []
+    titulo = ''
+    subtitulo = ''
+    target_registro = target
+
+    if tipo_escaneo == 'puertos':
+        ip_target = target if (target and validar_ip(target)) else ip_local()
+        hostname = socket.gethostname()
+        inicio = time.perf_counter()
+
+        if progreso:
+            progreso(f'Escaneando {len(PUERTOS_POR_DEFECTO)} puertos en {ip_target}')
+
+        abiertos = escanear_puertos(ip_target, PUERTOS_POR_DEFECTO)
+        for puerto in PUERTOS_POR_DEFECTO:
+            abierto = puerto in abiertos
+            if abierto and puerto == 5000:
+                explicacion = 'Sistema Flask corriendo'
+            elif abierto:
+                explicacion = 'Servicio activo'
+            else:
+                explicacion = 'Seguro (sin escucha)'
+            resultados.append({
+                'item': f'Puerto {puerto}',
+                'estado': 'ABIERTO' if abierto else 'CERRADO',
+                'explicacion': explicacion,
+            })
+
+        duracion = time.perf_counter() - inicio
+        titulo = 'Analisis de Puertos de Red'
+        subtitulo = (f'Host: {hostname} ({ip_target}) | {duracion:.1f}s | '
+                     f'{len(abiertos)} puertos abiertos')
+        target_registro = ip_target
+        app.logger.info(f'Escaneo de puertos ejecutado en {ip_target} ({duracion:.1f}s)')
+
+    elif tipo_escaneo == 'url':
+        if not app.config.get('PERMITIR_URLS_PRIVADAS'):
+            permitida, mensaje = es_url_permitida(target)
+            if not permitida:
+                raise ValueError(mensaje)
+
+        titulo, subtitulo, resultados = analizar_url(target, progreso=progreso)
+        target_registro = target
+        app.logger.info(f'Escaneo URL ejecutado: {target}')
+
+    elif tipo_escaneo == 'dispositivos':
+        objetivo = '' if target in (None, '', 'auto') else str(target).strip()
+        if objetivo and not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}$', objetivo):
+            raise ValueError('Prefijo de red invalido. Usa el formato 192.168.0')
+        prefijo = objetivo or '.'.join(ip_local().split('.')[:-1])
+
+        titulo, subtitulo, resultados = descubrir_dispositivos(prefijo, progreso=progreso)
+        target_registro = f'{prefijo}.0/24'
+        app.logger.info(f'Escaneo de dispositivos: {len(resultados)} encontrados')
+
+    return titulo, subtitulo, resultados, target_registro
+
+
+def _actualizar_progreso(trabajo_id, mensaje):
+    """Guarda el avance del escaneo para que el frontend lo muestre."""
+    try:
+        trabajo = TrabajoEscaneo.query.get(trabajo_id)
+        if trabajo:
+            trabajo.progreso = mensaje
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def _procesar_trabajo(trabajo_id):
+    """Hilo en segundo plano: ejecuta el escaneo y guarda resultados."""
+    with app.app_context():
+        trabajo = TrabajoEscaneo.query.get(trabajo_id)
+        if not trabajo or trabajo.estado != 'pendiente':
+            return
+        trabajo.estado = 'procesando'
+        trabajo.progreso = 'Iniciando escaneo...'
+        db.session.commit()
+        try:
+            titulo, subtitulo, resultados, target_registro = _ejecutar_escaneo(
+                trabajo.usuario_id, trabajo.tipo, trabajo.target or 'auto',
+                progreso=lambda m: _actualizar_progreso(trabajo.id, m),
+            )
+            escaneo_id = guardar_escaneo_completo(
+                trabajo.usuario_id, trabajo.tipo, target_registro,
+                titulo, subtitulo, resultados,
+            )
+            trabajo.escaneo_id = escaneo_id
+            trabajo.estado = 'completado'
+            trabajo.progreso = 'Completado'
+            trabajo.completado_en = datetime.utcnow()
+            db.session.commit()
+            app.logger.info(f'Trabajo {trabajo.id} completado (escaneo {escaneo_id})')
+        except ValueError as ve:
+            trabajo.estado = 'error'
+            trabajo.mensaje_error = str(ve)
+            trabajo.completado_en = datetime.utcnow()
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            app.logger.error(f'Error en trabajo {trabajo_id}: {exc}', exc_info=True)
+            trabajo = TrabajoEscaneo.query.get(trabajo_id)
+            if trabajo:
+                trabajo.estado = 'error'
+                trabajo.mensaje_error = f'Error interno: {exc}'
+                trabajo.completado_en = datetime.utcnow()
+                db.session.commit()
 
 
 def guardar_escaneo_completo(usuario_id, tipo_escaneo, target_registro, titulo, subtitulo, resultados):
@@ -976,27 +861,32 @@ def guardar_escaneo_completo(usuario_id, tipo_escaneo, target_registro, titulo, 
 
 
 def _cola_agente_activa():
-    if os.environ.get('AGENTE_HABILITADO') == '1':
-        return True
+    """La cola del agente solo se usa si esta habilitada Y hay token configurado."""
     if os.environ.get('AGENTE_HABILITADO') == '0':
         return False
-    return os.environ.get('VERCEL') == '1'
+    con_token = bool(_tokens_agente_validos())
+    if os.environ.get('AGENTE_HABILITADO') == '1':
+        return con_token
+    return os.environ.get('VERCEL') == '1' and con_token
 
 
 def _tokens_agente_validos():
-    validos = {TOKEN_AGENTE_POR_DEFECTO}
-    por_entorno = os.environ.get('AGENTE_TOKEN')
-    if por_entorno:
-        validos.add(por_entorno.strip())
-    return validos
+    """Tokens validos leidos de AGENTE_TOKEN (varios separados por coma)."""
+    raw = app.config.get('AGENTE_TOKEN', '') or os.environ.get('AGENTE_TOKEN', '')
+    return {t.strip() for t in raw.split(',') if t.strip()}
 
 
 def _requiere_token_agente():
+    if not _tokens_agente_validos():
+        return False
     token_recibido = request.headers.get('X-Agente-Token', '')
     if not token_recibido:
         datos = request.get_json(silent=True) or {}
         token_recibido = datos.get('agente_token', '') or request.form.get('agente_token', '')
-    return token_recibido in _tokens_agente_validos()
+    return any(
+        token_recibido and hmac.compare_digest(t, token_recibido)
+        for t in _tokens_agente_validos()
+    )
 
 
 @app.route('/api/agente/ping')
@@ -1004,7 +894,7 @@ def agente_ping():
     return jsonify({
         'ok': True,
         'version': 3,
-        'token_configurado': bool(os.environ.get('AGENTE_TOKEN') or TOKEN_AGENTE_POR_DEFECTO),
+        'token_configurado': bool(_tokens_agente_validos()),
         'cola_habilitada': _cola_agente_activa()
     })
 
@@ -1018,7 +908,7 @@ def estado_trabajo(trabajo_id):
     if not trabajo or trabajo.usuario_id != session['usuario_id']:
         return jsonify({'error': 'Trabajo no encontrado'}), 404
 
-    respuesta = {'id': trabajo.id, 'estado': trabajo.estado}
+    respuesta = {'id': trabajo.id, 'estado': trabajo.estado, 'progreso': trabajo.progreso}
 
     if trabajo.estado == 'completado' and trabajo.escaneo_id:
         escaneo = Escaneo.query.get(trabajo.escaneo_id)
@@ -1036,6 +926,8 @@ def estado_trabajo(trabajo_id):
 
 @app.route('/api/agente/claim', methods=['POST'])
 def agente_claim():
+    if not _tokens_agente_validos():
+        return jsonify({'error': 'Agente no configurado: define AGENTE_TOKEN en el servidor'}), 503
     if not _requiere_token_agente():
         return jsonify({'error': 'Token de agente invalido'}), 401
 
@@ -1053,6 +945,8 @@ def agente_claim():
 
 @app.route('/api/agente/resultados', methods=['POST'])
 def agente_resultados():
+    if not _tokens_agente_validos():
+        return jsonify({'error': 'Agente no configurado: define AGENTE_TOKEN en el servidor'}), 503
     if not _requiere_token_agente():
         return jsonify({'error': 'Token de agente invalido'}), 401
 
@@ -1226,6 +1120,8 @@ def eliminar_cuenta():
         return jsonify({'error': 'Usuario no encontrado'}), 404
 
     try:
+        # Los trabajos referencian al usuario: se borran primero
+        TrabajoEscaneo.query.filter_by(usuario_id=user.id).delete(synchronize_session=False)
         ids = [e.id for e in Escaneo.query.filter_by(usuario_id=user.id).all()]
         if ids:
             ResultadoEscaneo.query.filter(ResultadoEscaneo.escaneo_id.in_(ids)).delete(synchronize_session=False)
@@ -1243,24 +1139,133 @@ def eliminar_cuenta():
 
 
 # ----------------------------------------------------------------------
-# RECUPERACION DE CONTRASENA
+# RECUPERACION DE CONTRASENA (enlace de un solo uso por email)
 # ----------------------------------------------------------------------
+_RE_USERNAME = re.compile(r'^[a-zA-Z0-9_.@+-]{3,80}$')
+
+
+def _limpiar_reset(user):
+    user.reset_token_hash = None
+    user.reset_expira_en = None
+    user.reset_intentos = 0
+    db.session.commit()
+
+
+def _usuario_por_token_reset(token):
+    if not token:
+        return None
+    digest = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    user = Usuario.query.filter_by(reset_token_hash=digest).first()
+    if not user:
+        return None
+    if user.reset_expira_en and datetime.utcnow() > user.reset_expira_en:
+        _limpiar_reset(user)
+        return None
+    if (user.reset_intentos or 0) >= app.config.get('RESET_MAX_INTENTOS', 5):
+        _limpiar_reset(user)
+        return None
+    user.reset_intentos = (user.reset_intentos or 0) + 1
+    db.session.commit()
+    return user
+
+
 @app.route('/recuperar', methods=['GET', 'POST'])
 @limiter.limit("5 per minute")
 def recuperar():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
+        mensaje_generico = ('Si el usuario existe y tiene un correo configurado, '
+                            'te enviamos un enlace para restablecer la contrasena.')
+
+        if not _RE_USERNAME.match(username):
+            flash('Usuario invalido', 'error')
+            return redirect('/recuperar')
+
         user = Usuario.query.filter_by(username=username).first()
-        if user:
-            nueva_temporal = secrets.token_urlsafe(8)
-            user.password_hash = generate_password_hash(nueva_temporal)
+
+        if user and user.email:
+            token = secrets.token_urlsafe(32)
+            user.reset_token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+            user.reset_expira_en = datetime.utcnow() + timedelta(
+                minutes=app.config.get('RESET_TOKEN_MINUTOS', 30))
+            user.reset_intentos = 0
             db.session.commit()
-            app.logger.info(f'Contrasena temporal generada para: {username}')
-            flash(f'Contrasena temporal: {nueva_temporal} ( cambiala al iniciar sesion)', 'success')
+
+            enlace = url_for('restablecer', _external=True) + f'?token={token}'
+            smtp_ok = (app.config.get('SMTP_HOST') and app.config.get('SMTP_USER')
+                       and app.config.get('SMTP_PASS'))
+            es_produccion = app.config.get('ENTORNO') == 'production'
+
+            if smtp_ok:
+                ok, error = enviar_enlace_recuperacion(
+                    user.email, enlace,
+                    app.config.get('RESET_TOKEN_MINUTOS', 30),
+                    **_smtp_cfg(),
+                )
+                if ok:
+                    app.logger.info(f'Enlace de recuperacion enviado a {enmascarar_email(user.email)}')
+                    # En local/desarrollo tambien se muestra el enlace (util para pruebas)
+                    if not es_produccion:
+                        flash(f'Modo desarrollo - enlace de restablecimiento: {enlace}', 'info')
+                    else:
+                        flash(mensaje_generico, 'success')
+                else:
+                    flash(error or 'No se pudo enviar el correo. Intenta mas tarde.', 'error')
+            elif not es_produccion:
+                app.logger.info(f'[RESET-DEV] Enlace para {user.email}: {enlace}')
+                flash(f'Modo desarrollo - enlace de restablecimiento: {enlace}', 'info')
+            else:
+                app.logger.error(
+                    f'SMTP no configurado: no se pudo enviar enlace de recuperacion a {user.email}')
+                flash('No se pudo enviar el correo. Contacta al administrador del sistema.', 'error')
+        elif user and not user.email:
+            app.logger.warning(f'Usuario {username} sin correo configurado: no puede recuperar por email')
+            flash(mensaje_generico, 'info')
         else:
-            flash('Usuario no encontrado', 'error')
+            flash(mensaje_generico, 'info')
         return redirect('/recuperar')
     return render_template('recuperar.html')
+
+
+@app.route('/restablecer', methods=['GET', 'POST'])
+@limiter.limit("10 per minute")
+def restablecer():
+    token = (request.values.get('token') or '').strip()
+
+    if request.method == 'GET':
+        if not token:
+            flash('Enlace invalido. Solicita uno nuevo desde "Olvide mi contrasena".', 'error')
+            return redirect('/recuperar')
+        return render_template('restablecer.html', token=token)
+
+    user = _usuario_por_token_reset(token)
+    if not user:
+        flash('El enlace no es valido o ya vencio. Solicita uno nuevo.', 'error')
+        return redirect('/recuperar')
+
+    clave = request.form.get('clave', '')
+    confirmar = request.form.get('confirmar', '')
+
+    if len(clave) < 6:
+        flash('La contrasena debe tener al menos 6 caracteres', 'error')
+        return redirect(url_for('restablecer') + f'?token={token}')
+    if clave != confirmar:
+        flash('Las contrasenas no coinciden', 'error')
+        return redirect(url_for('restablecer') + f'?token={token}')
+
+    user.password_hash = generate_password_hash(clave)
+    user.reset_token_hash = None
+    user.reset_expira_en = None
+    user.reset_intentos = 0
+    user.tfa_codigo_hash = None
+    user.tfa_expira_en = None
+    db.session.commit()
+    app.logger.info(f'Contrasena restablecida por enlace: {user.username}')
+
+    session['usuario'] = user.username
+    session['usuario_id'] = user.id
+    flash('Contrasena actualizada correctamente.', 'success')
+    return redirect('/dashboard')
 
 
 # ----------------------------------------------------------------------
@@ -1348,8 +1353,46 @@ def internal_error(e):
 # ----------------------------------------------------------------------
 # INICIALIZACION
 # ----------------------------------------------------------------------
+# Columnas que pueden faltar en bases de datos creadas por versiones
+# anteriores: se agregan solas al arrancar (migracion ligera).
+COLUMNAS_NUEVAS = {
+    'usuarios': {
+        'reset_token_hash': 'VARCHAR(255) NULL',
+        'reset_expira_en': 'DATETIME NULL',
+        'reset_intentos': 'INTEGER NOT NULL DEFAULT 0',
+    },
+    'trabajos_escaneo': {
+        'progreso': 'VARCHAR(255) NULL',
+    },
+}
+
+
+def _asegurar_columnas():
+    """Agrega columnas nuevas a tablas existentes (MySQL/SQLite)."""
+    from sqlalchemy import inspect, text
+    try:
+        inspector = inspect(db.engine)
+        for tabla, columnas in COLUMNAS_NUEVAS.items():
+            if not inspector.has_table(tabla):
+                continue
+            existentes = {c['name'] for c in inspector.get_columns(tabla)}
+            for columna, ddl in columnas.items():
+                if columna in existentes:
+                    continue
+                try:
+                    db.session.execute(text(f'ALTER TABLE {tabla} ADD COLUMN {columna} {ddl}'))
+                    db.session.commit()
+                    app.logger.info(f'Columna agregada a {tabla}: {columna}')
+                except Exception as exc:
+                    db.session.rollback()
+                    app.logger.warning(f'No se pudo agregar {tabla}.{columna}: {exc}')
+    except Exception as exc:
+        app.logger.warning(f'Migracion de columnas omitida: {exc}')
+
+
 with app.app_context():
     db.create_all()
+    _asegurar_columnas()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
