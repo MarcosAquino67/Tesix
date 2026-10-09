@@ -43,7 +43,7 @@
                 <span class="text-lg font-bold text-white tracking-wide">SecureScan</span>
             </div>
 
-            <!-- Navegación con enlaces corregidos -->
+            <!-- Navegación -->
             <nav class="space-y-1.5">
                 <a href="/dashboard" class="flex items-center gap-3 px-4 py-3 bg-[#6c47ff]/15 text-[#8b5cf6] font-semibold text-sm rounded-xl border border-[#6c47ff]/20">
                     <i data-lucide="layout-grid" class="w-4 h-4"></i>
@@ -83,7 +83,7 @@
 
     <!-- Contenido Principal -->
     <main class="flex-1 flex flex-col min-w-0">
-        
+
         <!-- Navbar Superior -->
         <header class="h-16 px-8 border-b border-[#1e1e2d] flex items-center justify-between bg-[#12121a]/40 backdrop-blur-md">
             <div class="flex items-center gap-4">
@@ -96,7 +96,7 @@
             <div class="flex items-center gap-5">
                 <button class="relative text-gray-400 hover:text-white">
                     <i data-lucide="bell" class="w-5 h-5"></i>
-                    <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                    <span id="badge-alertas" class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full hidden"></span>
                 </button>
                 <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-full bg-[#6c47ff]/20 border border-[#6c47ff]/40 flex items-center justify-center font-bold text-xs text-[#8b5cf6]">
@@ -109,8 +109,8 @@
 
         <!-- Panel Interno -->
         <div class="p-8 space-y-6 overflow-y-auto">
-            
-            <!-- Título & Fechas -->
+
+            <!-- Título & Estado -->
             <div class="flex justify-between items-end">
                 <div>
                     <h2 class="text-xl font-bold text-white">Resumen general</h2>
@@ -122,10 +122,10 @@
                 </div>
             </div>
 
-            <!-- Grid de 4 Métricas principales (Conectadas dinámicamente) -->
+            <!-- Grid de 4 Métricas principales -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                
-                <!-- Card 1 -->
+
+                <!-- Card 1: Análisis realizados -->
                 <div class="bg-[#14141e] border border-[#1e1e2d] p-5 rounded-2xl relative overflow-hidden">
                     <span class="text-xs font-medium text-gray-400">Análisis realizados</span>
                     <div class="flex items-baseline justify-between mt-3">
@@ -133,11 +133,11 @@
                         <i data-lucide="trending-up" class="w-5 h-5 text-indigo-400"></i>
                     </div>
                     <p class="text-[11px] text-emerald-400 font-medium mt-3 flex items-center gap-1">
-                        <span>↑ Histórico</span> <span class="text-gray-500">en base de datos</span>
+                        <span>Histórico</span> <span class="text-gray-500">en base de datos</span>
                     </p>
                 </div>
 
-                <!-- Card 2 -->
+                <!-- Card 2: Dispositivos en red -->
                 <div class="bg-[#14141e] border border-[#1e1e2d] p-5 rounded-2xl">
                     <span class="text-xs font-medium text-emerald-400">Dispositivos en Red</span>
                     <div class="flex items-baseline justify-between mt-3">
@@ -149,9 +149,9 @@
                     </p>
                 </div>
 
-                <!-- Card 3 -->
+                <!-- Card 3: Vulnerabilidades altas -->
                 <div class="bg-[#14141e] border border-[#1e1e2d] p-5 rounded-2xl">
-                    <span class="text-xs font-medium text-amber-500">Vulnerabilidades Altas</span>
+                    <span class="text-xs font-medium text-red-500">Vulnerabilidades Altas</span>
                     <div class="flex items-baseline justify-between mt-3">
                         <span id="dash-vuln-altas" class="text-3xl font-extrabold text-white">0</span>
                     </div>
@@ -160,33 +160,26 @@
                     </p>
                 </div>
 
-                <!-- Card 4 -->
+                <!-- Card 4: Vulnerabilidades totales -->
                 <div class="bg-[#14141e] border border-[#1e1e2d] p-5 rounded-2xl">
-                    <span class="text-xs font-medium text-red-500">Vulnerabilidades Críticas</span>
+                    <span class="text-xs font-medium text-blue-500">Vulnerabilidades Totales</span>
                     <div class="flex items-baseline justify-between mt-3">
-                        <span id="dash-vuln-criticas" class="text-3xl font-extrabold text-white">0</span>
+                        <span id="dash-vuln-totales" class="text-3xl font-extrabold text-white">0</span>
                     </div>
-                    <p class="text-[11px] text-red-400 font-medium mt-3 flex items-center gap-1">
-                        <span>Requieren</span> <span class="text-gray-500">atención inmediata</span>
+                    <p class="text-[11px] text-blue-400 font-medium mt-3 flex items-center gap-1">
+                        <span>Registradas</span> <span class="text-gray-500">en el historial</span>
                     </p>
-                </div>
-                        </thead>
-                        <tbody id="tabla-dash-dispositivos" class="divide-y divide-[#1e1e2d]">
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
             </div>
 
-            <!-- Fila Inferior: Gráfico y Actividad -->
+            <!-- Fila Media: Gráfico de severidad y Actividad reciente -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
+
                 <!-- Vulnerabilidades por severidad (Dona) -->
                 <div class="bg-[#14141e] border border-[#1e1e2d] p-6 rounded-2xl">
                     <h3 class="text-sm font-bold text-white mb-6">Vulnerabilidades por severidad</h3>
-                    
+
                     <div class="flex items-center justify-around gap-6">
-                        <!-- Canvas Chart -->
                         <div class="relative w-44 h-44 flex items-center justify-center">
                             <canvas id="doughnutChart"></canvas>
                             <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -195,27 +188,21 @@
                             </div>
                         </div>
 
-                        <!-- Leyendas -->
                         <div class="space-y-3 text-xs">
                             <div class="flex items-center gap-3">
                                 <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-                                <span class="text-gray-300 w-16">Críticas</span>
-                                <span id="dona-criticas" class="font-bold text-white">0 <span class="text-gray-500 font-normal">(0%)</span></span>
+                                <span class="text-gray-300 w-16">Altas</span>
+                                <span id="dona-altas" class="font-bold text-white">0</span>
                             </div>
                             <div class="flex items-center gap-3">
                                 <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                                <span class="text-gray-300 w-16">Altas</span>
-                                <span id="dona-altas" class="font-bold text-white">0 <span class="text-gray-500 font-normal">(0%)</span></span>
-                            </div>
-                            <div class="flex items-center gap-3">
-                                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
                                 <span class="text-gray-300 w-16">Medias</span>
-                                <span id="dona-medias" class="font-bold text-white">0 <span class="text-gray-500 font-normal">(0%)</span></span>
+                                <span id="dona-medias" class="font-bold text-white">0</span>
                             </div>
                             <div class="flex items-center gap-3">
                                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
                                 <span class="text-gray-300 w-16">Bajas</span>
-                                <span id="dona-bajas" class="font-bold text-white">0 <span class="text-gray-500 font-normal">(0%)</span></span>
+                                <span id="dona-bajas" class="font-bold text-white">0</span>
                             </div>
                         </div>
                     </div>
@@ -229,31 +216,52 @@
                         <div class="text-center text-gray-500 text-xs py-4">Cargando actividad...</div>
                     </div>
                 </div>
+            </div>
 
+            <!-- Fila Inferior: detalle del último análisis -->
+            <div class="bg-[#14141e] border border-[#1e1e2d] p-6 rounded-2xl">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 id="titulo-ultimo" class="text-sm font-bold text-white">Detalle del último análisis</h3>
+                    <a href="/historial" class="text-xs font-semibold text-[#8b5cf6] hover:underline">Ver todo el historial →</a>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="text-gray-400 border-b border-[#232333]">
+                                <th class="pb-3 font-medium">Elemento / Dispositivo</th>
+                                <th class="pb-3 font-medium">Estado</th>
+                                <th class="pb-3 font-medium">Detalle</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-dash-dispositivos" class="divide-y divide-[#1e1e2d]">
+                            <tr>
+                                <td colspan="3" class="py-6 text-center text-gray-500 text-xs">
+                                    Sin análisis todavía. Ejecutá tu primer escaneo en
+                                    <a href="/nuevo-analisis" class="text-[#8b5cf6] hover:underline">Nuevo análisis</a>.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
         </div>
     </main>
 
-    <!-- Inicializar Lucide Icons, Chart.js y Carga de datos AJAX -->
+    <!-- Inicializar Lucide Icons, Chart.js y Carga de datos -->
     <script>
         lucide.createIcons();
 
-        // Configuración inicial de la gráfica de dona (se actualiza al cargar datos)
         let doughnutChart;
         const ctx = document.getElementById('doughnutChart').getContext('2d');
         doughnutChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: ['Críticas', 'Altas', 'Medias', 'Bajas'],
+                labels: ['Altas', 'Medias', 'Bajas'],
                 datasets: [{
-                    data: [0, 0, 0, 0],
-                    backgroundColor: [
-                        '#ef4444', // Red
-                        '#f59e0b', // Amber
-                        '#3b82f6', // Blue
-                        '#10b981'  // Emerald
-                    ],
+                    data: [0, 0, 0],
+                    backgroundColor: ['#ef4444', '#f59e0b', '#10b981'],
                     borderWidth: 0,
                     hoverOffset: 4
                 }]
@@ -271,18 +279,10 @@
 
         document.addEventListener('DOMContentLoaded', cargarDatosDashboard);
 
-        function clasificarEstado(estado) {
-            if (['ABIERTO', 'ALERTA', 'FALLO'].includes(estado)) return 'critica';
-            if (['RIESGO', 'AUSENTE'].includes(estado)) return 'alta';
-            if (['SEGURO'].includes(estado)) return 'baja';
-            return 'media';
-        }
-
         function tiempoRelativo(fechaStr) {
             const fecha = new Date(fechaStr.replace(' ', 'T'));
             const ahora = new Date();
-            const diffMs = ahora - fecha;
-            const diffMin = Math.floor(diffMs / 60000);
+            const diffMin = Math.floor((ahora - fecha) / 60000);
             const diffH = Math.floor(diffMin / 60);
             const diffD = Math.floor(diffH / 24);
 
@@ -293,6 +293,13 @@
             return `Hace ${diffD} días`;
         }
 
+        function etiquetaTipo(tipo) {
+            if (tipo === 'puertos') return 'Escaneo de puertos';
+            if (tipo === 'url') return 'Análisis web / SSL';
+            if (tipo === 'dispositivos') return 'Dispositivos en red';
+            return tipo;
+        }
+
         function iconoParaTipo(tipo) {
             if (tipo === 'puertos') return 'network';
             if (tipo === 'url') return 'globe';
@@ -300,106 +307,105 @@
             return 'activity';
         }
 
+        function colorEstado(estado) {
+            if (['ABIERTO', 'ALERTA', 'FALLO', 'RIESGO'].includes(estado)) return 'bg-red-500/10 text-red-400 border border-red-500/20';
+            if (['AUSENTE', 'CERRADO'].includes(estado)) return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+            return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+        }
+
         async function cargarDatosDashboard() {
             try {
-                const response = await fetch('/api/historial');
-                const data = await response.json();
-                const escaneos = data.escaneos || data;
+                // 1. Historial (una sola página) y resumen de vulnerabilidades (endpoint agregado)
+                const [histRes, vulnRes] = await Promise.all([
+                    fetch('/api/historial?page=1&per_page=20'),
+                    fetch('/api/vulnerabilidades/summary')
+                ]);
+                const hist = await histRes.json();
+                const vuln = await vulnRes.json();
 
-                // Total de análisis
-                document.getElementById('dash-total-escaneos').innerText = escaneos.length;
+                const escaneos = hist.escaneos || [];
+                const resumen = vuln.summary || {};
+                const altas = resumen.High || 0;
+                const medias = resumen.Medium || 0;
+                const bajas = resumen.Low || 0;
+                const totalVulns = altas + medias + bajas;
 
-                // Contadores de severidad
-                let criticas = 0, altas = 0, medias = 0, bajas = 0;
-                let ultimoDispositivos = null;
-                let items = [];
+                // 2. Tarjetas
+                document.getElementById('dash-total-escaneos').innerText = hist.total || escaneos.length;
+                document.getElementById('dash-vuln-altas').innerText = altas;
+                document.getElementById('dash-vuln-totales').innerText = totalVulns;
 
-                for (const esc of escaneos) {
-                    if (esc.tipo === 'dispositivos' && !ultimoDispositivos) {
-                        ultimoDispositivos = esc;
+                // 3. Dona
+                doughnutChart.data.datasets[0].data = [altas, medias, bajas];
+                doughnutChart.update();
+                document.getElementById('dona-total').innerText = totalVulns;
+                document.getElementById('dona-altas').innerText = altas;
+                document.getElementById('dona-medias').innerText = medias;
+                document.getElementById('dona-bajas').innerText = bajas;
+
+                // 4. Badge de alertas si hay vulnerabilidades altas
+                document.getElementById('badge-alertas').classList.toggle('hidden', altas === 0);
+
+                // 5. Último análisis: detalle + dispositivos
+                const tbody = document.getElementById('tabla-dash-dispositivos');
+                if (escaneos.length > 0) {
+                    const ultimo = escaneos[0];
+                    document.getElementById('dash-dispositivos').innerText =
+                        (ultimo.tipo === 'dispositivos' && ultimo.total_dispositivos) || 0;
+
+                    const detRes = await fetch(`/api/historial/${ultimo.id}`);
+                    const detalle = await detRes.json();
+                    document.getElementById('titulo-ultimo').innerText =
+                        `${etiquetaTipo(ultimo.tipo)} — ${ultimo.target}`;
+
+                    const filas = (detalle.detalles || []).slice(0, 10);
+                    if (filas.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="3" class="py-6 text-center text-gray-500 text-xs">El último análisis no tiene resultados guardados.</td></tr>';
+                    } else {
+                        tbody.innerHTML = filas.map(d => `
+                            <tr>
+                                <td class="py-3 font-bold text-white">${d.item}</td>
+                                <td class="py-3">
+                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${colorEstado(d.estado)}">${d.estado}</span>
+                                </td>
+                                <td class="py-3 text-gray-300 font-mono text-xs">${d.explicacion || ''}</td>
+                            </tr>
+                        `).join('');
                     }
-
-                    const detalleRes = await fetch(`/api/historial/${esc.id}`);
-                    const detalle = await detalleRes.json();
-
-                    if (detalle.detalles) {
-                        for (const d of detalle.detalles) {
-                            const sev = clasificarEstado(d.estado);
-                            if (sev === 'critica') criticas++;
-                            else if (sev === 'alta') altas++;
-                            else if (sev === 'media') medias++;
-                            else if (sev === 'baja') bajas++;
-                        }
-                    }
-
-                    items.push({
-                        tipo: esc.tipo,
-                        target: esc.target,
-                        fecha: esc.fecha,
-                        criticas: detalle.detalles ? detalle.detalles.filter(d => clasificarEstado(d.estado) === 'critica').length : 0
-                    });
                 }
 
-                // Tarjetas de vulnerabilidades
-                document.getElementById('dash-vuln-altas').innerText = altas;
-                document.getElementById('dash-vuln-criticas').innerText = criticas;
-
-                // Gráfico de dona
-                doughnutChart.data.datasets[0].data = [criticas, altas, medias, bajas];
-                doughnutChart.update();
-
-                const total = criticas + altas + medias + bajas;
-                document.getElementById('dona-total').innerText = total;
-                const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
-                document.getElementById('dona-criticas').innerHTML = `${criticas} <span class="text-gray-500 font-normal">(${pct(criticas)}%)</span>`;
-                document.getElementById('dona-altas').innerHTML = `${altas} <span class="text-gray-500 font-normal">(${pct(altas)}%)</span>`;
-                document.getElementById('dona-medias').innerHTML = `${medias} <span class="text-gray-500 font-normal">(${pct(medias)}%)</span>`;
-                document.getElementById('dona-bajas').innerHTML = `${bajas} <span class="text-gray-500 font-normal">(${pct(bajas)}%)</span>`;
-
-                // Dispositivos en red
-                document.getElementById('dash-dispositivos').innerText = ultimoDispositivos ? (ultimoDispositivos.total_dispositivos || 0) : 0;
-
-                // Actividad reciente (últimos 4)
-                const listaActividad = document.getElementById('lista-actividad');
-                if (items.length === 0) {
-                    listaActividad.innerHTML = '<div class="text-center text-gray-500 text-xs py-4">Sin actividad reciente. Ejecuta tu primer análisis.</div>';
+                // 6. Actividad reciente (últimos 4 escaneos)
+                const lista = document.getElementById('lista-actividad');
+                if (escaneos.length === 0) {
+                    lista.innerHTML = '<div class="text-center text-gray-500 text-xs py-4">Sin actividad reciente. Ejecutá tu primer análisis.</div>';
                 } else {
-                    listaActividad.innerHTML = '';
-                    items.slice(0, 4).forEach(item => {
-                        const tieneCriticas = item.criticas > 0;
-                        const colorBox = tieneCriticas ? 'text-red-400 bg-red-500/10' : 'text-emerald-400 bg-emerald-500/10';
-                        const icono = tieneCriticas ? 'alert-triangle' : 'check';
-                        const titulo = tieneCriticas ? `Vulnerabilidad crítica encontrada` :
-                                       item.tipo === 'puertos' ? 'Escaneo de puertos completado' :
-                                       item.tipo === 'url' ? 'Análisis web finalizado' :
-                                       'Dispositivos detectados en red';
-                        listaActividad.innerHTML += `
-                            <div class="flex items-start justify-between">
-                                <div class="flex items-center gap-3">
-                                    <div class="${colorBox} p-2 rounded-lg">
-                                        <i data-lucide="${icono}" class="w-4 h-4"></i>
-                                    </div>
-                                    <div>
-                                        <p class="text-xs font-semibold text-white">${titulo}</p>
-                                        <p class="text-[11px] text-gray-400">${item.target}</p>
-                                    </div>
+                    lista.innerHTML = escaneos.slice(0, 4).map(esc => `
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="text-indigo-400 bg-indigo-500/10 p-2 rounded-lg">
+                                    <i data-lucide="${iconoParaTipo(esc.tipo)}" class="w-4 h-4"></i>
                                 </div>
-                                <span class="text-[11px] text-gray-500">${tiempoRelativo(item.fecha)}</span>
+                                <div>
+                                    <p class="text-xs font-semibold text-white">${etiquetaTipo(esc.tipo)}</p>
+                                    <p class="text-[11px] text-gray-400">${esc.target}${esc.subtitulo ? ' · ' + esc.subtitulo.split('|').pop().trim() : ''}</p>
+                                </div>
                             </div>
-                        `;
-                    });
+                            <span class="text-[11px] text-gray-500">${tiempoRelativo(esc.fecha)}</span>
+                        </div>
+                    `).join('');
                     lucide.createIcons();
                 }
 
             } catch (err) {
                 console.error('Error al cargar datos del Dashboard:', err);
+                document.getElementById('lista-actividad').innerHTML =
+                    '<div class="text-center text-red-400 text-xs py-4">No se pudieron cargar los datos. Verificá que la sesión siga activa.</div>';
             }
         }
     </script>
 <script>
 const savedTheme = localStorage.getItem('tema') || 'oscuro';
 document.body.classList.add('tema-' + savedTheme);
-// Density
 const savedDensity = localStorage.getItem('densidad') || 'normal';
 document.body.classList.add('density-' + savedDensity);
 </script>
