@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}SecureScan{% endblock %}</title>
+
+    <!-- Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Theme CSS -->
+    <link rel="stylesheet" href="/static/css/theme.css">
+
+    <!-- Page styles -->
+    {% block styles %}{% endblock %}
+
+    <!-- Page scripts -->
+    {% block scripts %}{% endblock %}
+</head>
+<body class="min-h-screen text-gray-200 flex">
+
+    {% block sidebar %}
+    <!-- Sidebar / Menú Lateral -->
+    <aside class="w-64 bg-[#12121a] border-r border-[#1e1e2d] flex flex-col justify-between p-5 min-h-screen shrink-0">
+        <div>
+            <!-- Logo -->
+            <div class="flex items-center gap-3 px-2 py-4 mb-6">
+                <div class="bg-[#6c47ff]/20 p-2 rounded-xl border border-[#6c47ff]/30 text-[#6c47ff]">
+                    <i data-lucide="shield" class="w-6 h-6"></i>
+                </div>
+                <span class="text-lg font-bold text-white tracking-wide">SecureScan</span>
+            </div>
+
+            <!-- Navegación -->
+            <nav class="space-y-1.5">
+                <a href="/dashboard" class="nav-link flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="layout-grid" class="w-4 h-4"></i> Dashboard
+                </a>
+                <a href="/nuevo-analisis" class="nav-link flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span>Nuevo análisis</span>
+                </a>
+                <a href="/historial" class="nav-link flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="history" class="w-4 h-4"></i> Historial
+                </a>
+                <a href="/resultados" class="nav-link flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="file-text" class="w-4 h-4"></i> Resultados
+                </a>
+                <a href="/vulnerabilidades" class="nav-link flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="shield-alert" class="w-4 h-4"></i> Vulnerabilidades
+                </a>
+                <a href="/configuracion" class="nav-link flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[#1a1a26] font-medium text-sm rounded-xl transition-all">
+                    <i data-lucide="settings" class="w-4 h-4"></i> Configuración
+                </a>
+            </nav>
+        </div>
+
+        <!-- Cerrar Sesión -->
+        <div class="pt-4 border-t border-[#1e1e2d]">
+            <a href="/logout" class="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-red-400 hover:bg-red-500/10 font-medium text-sm rounded-xl transition-all">
+                <i data-lucide="log-out" class="w-4 h-4"></i> Cerrar sesión
+            </a>
+        </div>
+    </aside>
+    {% endblock %}
+
+    <main class="flex-1 flex flex-col min-w-0">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Shared scripts -->
+    <script>
+        lucide.createIcons();
+
+        // Tema y densidad guardados (se aplican en cada carga).
+        const savedTheme = localStorage.getItem('tema') || 'oscuro';
+        document.body.classList.add('tema-' + savedTheme);
+        const savedDensity = localStorage.getItem('densidad') || 'normal';
+        document.body.classList.add('density-' + savedDensity);
+    </script>
+
+    {% block block_scripts %}{% endblock %}
+</body>
+</html>
