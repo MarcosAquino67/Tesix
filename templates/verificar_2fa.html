@@ -1,26 +1,21 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>SecureScan - Verificación en dos pasos</title>
+{% extends "base.html" %}
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+{% block title %}SecureScan - Verificación en dos pasos{% endblock %}
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-
-    <style>
+{% block styles %}
+<style>
+    main { align-items: center; justify-content: center; }
+</style>
+<style>
         body { background-color: #0d0d12; font-family: 'Inter', sans-serif; }
         .codigo-input { letter-spacing: 0.5em; text-indent: 0.5em; }
     </style>
-</head>
-<body class="min-h-screen text-gray-200 flex items-center justify-center p-6">
+{% endblock %}
 
-    <div class="w-full max-w-md">
+{% block sidebar %}{% endblock %}
+
+{% block content %}
+<div class="w-full max-w-md">
         <div class="flex items-center justify-center gap-3 mb-8">
             <div class="bg-[#6c47ff]/20 p-2.5 rounded-xl border border-[#6c47ff]/30 text-[#6c47ff]">
                 <i data-lucide="shield" class="w-7 h-7"></i>
@@ -78,8 +73,10 @@
             </div>
         </div>
     </div>
+{% endblock %}
 
-    <script>
+{% block block_scripts %}
+<script>
         lucide.createIcons();
 
         async function reenviarCodigo() {
@@ -103,5 +100,4 @@
             setTimeout(() => { btn.disabled = false; btn.classList.remove('opacity-50'); }, 30000);
         }
     </script>
-</body>
-</html>
+{% endblock %}
